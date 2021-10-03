@@ -1,0 +1,610 @@
+#
+#  Usage
+# --------
+# Python module name:
+#   id: Ruby module name
+#     e.g. id: numo/narray # import numpy as np => require 'numo/narray'
+#   mod_name: Ruby module namespace : %(mod)s
+#     e.g. mod_name: Numo  # from numpy import array => require 'numo/narray'; include Numo # mod: mod_name + '::'
+#   mod_class_name:
+#     Pyth n class name: Ruby class name    # For class inheritance
+#     e.g. TestCase: 'Test::Unit::TestCase'
+#
+#   methods_map:
+#     Python method name:
+#       bracket: False             => argument bracket
+#                                     True: use bracket(default) # e.g. Numo::NArray.cast([3.0, 4.0]).prod(keepdims: true)
+#                                     False: not use bracket                                              ^^^^^^^^^^^^^^^^
+#       key:
+#         - ['second']             => argument count 1 (len(key[..]) == 1) case
+#         - ['first', 'second'..]  => argument count 2 (len(key[..]) == 2) or not match (key[-1]) case
+#       key_order:                 => key order change setting
+#         - ['second']             => argument count 1 (len(key_order[..]) == 1) case
+#         - ['second', 'first'..]  => argument count 2 (len(key_order[..]) == 2) or not match (key[-1]) case
+#       main_data_key: object      => Main data key name : %(data)s
+#
+#       main_func: '(%(data)s).sum'  # convert to Ruby method
+#        or
+#       main_func_key: dtype       => convert function key name
+#       main_func_hash_nm: 'NArray' => convert function name (not match(default) case)
+#       main_func_hash: *func_hash  => convert function name (match case)
+#
+#       val:                       => arguments dict
+#         object: False            => Not use argument data
+#         dtype:  '%(mod)s%(main_func)s.cast(%(data)s)'  # convert to Ruby method
+#         axis: axis               => Use keyword argument data
+#         places: '1e-%(places)s'  => String conversion processing. (Same key only)
+#         '*args': True            => Use star argument data
+#         '**kwds': True           => Use star keyword argument data
+#       rtn:
+#         - ""                     => rtn[0] : customize return string (main_func + rtn) : argument count 0 case
+#         - "%(start)s"            => rtn[1] : customize return string (main_func + rtn) : argument count 1 case
+#         - "%(start)s %(second)s" => rtn[2] : customize return string (main_func + rtn) : argument count 2 or over (rtn[-1]) case
+#       rtn_star:
+#         - ""                     => rtn_star[0] : customize return string (main_func + rtn_star) : key (argument) count 0 case
+#         - "%(one)s"              => rtn_star[1] : customize return string (main_func + rtn_star) : key (argument) count 1 case
+#         - "%(one)s,%(*args)s"    => rtn_star[2] : customize return string (main_func + rtn_star) : key (argument) count 2 case
+#         - "%(one)s,%(*args)s,%(**kwds)s" => rtn_star[3] : customize return string (main_func + rtn_star) : key (argument) count 3 or over (rtn[-1]) case
+#
+#   ignore:
+#     Python method name:          # ignore case
+#       e.g.    main: ''
+#
+
+numpy:
+  id: numo/narray # import numpy as np => require 'numo/narray'
+  mod_name: Numo  # from numpy import array => require 'numo/narray'; include Numo # mod: mod_name + '::'
+  methods_map:
+    int8:
+      bracket: False
+      main_func: 'Numo::Int8'
+    int16:
+      bracket: False
+      main_func: 'Numo::Int16'
+    int32:
+      bracket: False
+      main_func: 'Numo::Int32'
+    int64:
+      bracket: False
+      main_func: 'Numo::Int64'
+    int:
+      bracket: False
+      main_func: 'Numo::Int64'
+    uint8:
+      bracket: False
+      main_func: 'Numo::UInt8'
+    uint16:
+      bracket: False
+      main_func: 'Numo::UInt16'
+    uint32:
+      bracket: False
+      main_func: 'Numo::UInt32'
+    uint64:
+      bracket: False
+      main_func: 'Numo::UInt64'
+    uint:
+      bracket: False
+      main_func: 'Numo::UInt64'
+    float32:
+      bracket: False
+      main_func: 'Numo::SFloat'
+    float64:
+      bracket: False
+      main_func: 'Numo::DFloat'
+    array: # => [] : class_method
+      # array(object, dtype=None, copy=True, order='K', subok=False, ndmin=0)
+      # => Numo::NArray[object]
+      # => Numo::Int32[object]
+      bracket: False
+      key:
+        - [object, dtype, copy, order, subok, ndmin]
+      main_data_key: object                       # Main data
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'NArray'                 # convert function name (not match(default) case)
+      main_func_hash: &func_hash                  # convert function name
+          '%s.int8':    'Int8'
+          '%s.int16':   'Int16'        # np.array([5], dtype=np.int16) => Numo::Int16.cast([5])
+          '%s.int32':   'Int32'
+          '%s.int64':   'Int64'
+          '%s.int':     'Int64'
+          '%s.uint8':   'UInt8'
+          '%s.uint16':  'UInt16'
+          '%s.uint32':  'UInt32'
+          '%s.uint64':  'UInt64'
+          '%s.float32': 'SFloat'
+          '%s.float64': 'DFloat'
+      val:
+        object: False                             # Not use argument data
+        dtype:  '%(mod)s%(main_func)s.cast(%(data)s)'  # np.array([5], dtype=np.float32) => Numo::NArray.cast([5])
+    asarray: # => cast : class_method
+      # asarray(a, dtype=None, order=None)
+      # => cast(array)
+      key:
+        - [a, dtype, order]
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'NArray'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      val:
+        a: True                                   # Use argument data
+        dtype: '%(mod)s%(main_func)s.cast'        # convert function
+        order: False                              # Not use argument data
+    insert: # => insert : instance_method
+      # (arr, obj, values, axis=None)
+      # => (indice, values, axis: nil)
+      key:
+        - [arr, obj, values, axis]
+      main_data_key: arr                          # Main data : %(data)s
+      main_func: '(%(data)s).insert'              # convert function : np.insert(a, 1, 5, axis=1) => a.insert(1, 5, axis: 1)
+      val:
+        arr: False                                # Not use argument data
+        obj: True                                 # Use argument data
+        values: True                              # Use argument data
+        axis: axis                                # Use keyword argument data
+    prod: # => prod : instance_method
+      # prod(a, axis=None, dtype=None, out=None, keepdims=<class numpy._globals._NoValue>)
+      # => prod(axis: nil, keepdims: false, nan: false)
+      #  e.g.
+      #    np.prod(shape, axis=1, keepdims=True) => Numo::NArray[shape].prod(axis:1, keepdims:true)
+      #    np.prod(shape, axis=0,dtype=np.int32) => Numo::Int32[shape].prod(axis:0)
+      key:
+        - [a, axis, dtype, out, keepdims]
+      main_data_key: a                            # Main data
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'NArray'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      val:
+        a: False                                  # Not use argument data
+        axis: axis                                # Use keyword argument data
+        dtype: '%(mod)s%(main_func)s.cast(%(data)s).prod' # convert function
+        out: False                                # Not use argument data
+        keepdims: keepdims                        # Use keyword argument data
+    array2string: # => format_to_a : instance_method (reverse case)
+      # array2string(a, max_line_width=None, precision=None, suppress_small=None, separator=' ', prefix='', style=<built-in function repr>, formatter=None)[source]
+      # => format_to_a(separator: ' ')
+      key:
+        - [a, max_line_width, precision, suppress_small, separator, prefix, style, formatter]
+      main_data_key: a                            # Main data : %(data)s
+      main_func: '(%(data)s).format_to_a.join'    # convert function : np.array2string(a) => a.format_to_a()
+      val:
+        a: False                                  # Not use argument data
+        separator: True                           # Use argument data # np.array2string(x, separator=%s) => x.format_to_a().join(%s)
+    sum: # => sum : instance_method (reverse case)
+      # (a, axis=None, dtype=None, out=None, keepdims=<class numpy._globals._NoValue>)[source]
+      key:
+        - [a, axis, dtype, out, keepdims]
+      val:
+        a: False                                  # Not use argument data
+      main_data_key: a                            # Main data : %(data)s
+      main_func: '(%(data)s).sum'                 # convert function : np.sum(w*x) => (w*x).sum
+    ones_like: # => new_ones : instance_method (reverse case)
+      # (a, dtype=None, order='K', subok=True)
+      key:
+        - [a, dtype, order, subok]
+      val:
+        a: False                                  # Not use argument data
+      main_data_key: a                            # Main data : %(data)s
+      main_func: '(%(data)s).new_ones'            # convert function : np.ones_like(a) => a.new_ones()
+    zeros_like: # => new_zeros : instance_method (reverse case)
+      # (a, dtype=None, order='K', subok=True)
+      key:
+        - [a, dtype, order, subok]
+      val:
+        a: False                                  # Not use argument data
+      main_data_key: a                            # Main data : %(data)s
+      main_func: '(%(data)s).new_zeros'           # convert function : np.zeros_like(a) => a.new_zeros()
+    full_like: # => new_fill : instance_method (reverse case)
+      # (a, fill_value, dtype=None, order='K', subok=True)
+      key:
+        - [a, fill_value, dtype, order, subok]
+      val:
+        a: False                                  # Not use argument data
+        fill_value: True                          # Use argument data
+      main_data_key: a                            # Main data : %(data)s
+      main_func: '(%(data)s).new_fill'            # convert function : np.full_like(a) => a.new_fill(fill_value)
+    empty_like: # => new_like : class_method
+      # empty_like(a, dtype=None, order='K', subok=True)
+      # => Numo::NArray.new_like(obj)
+      key:
+        - [a, dtype, order, subok]
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'NArray'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      val:
+        a: True                                   # Use argument data
+        dtype: '%(mod)s%(main_func)s.new_like'    # np.empty_like(x) => Numo::NArray.new_like(x)
+        order: False                              # Not use argument data
+        subok: False                              # Not use argument data
+    empty: # => Numo::NArray.new : instance_method
+      # empty(shape, dtype=float, order='C')
+      #  e.g.
+      #    np.empty(shape)                   => Numo::DFloat.new(shape)
+      #    np.empty(shape, dtype=np.float32) => Numo::SFloat.new(shape)
+      key:
+        - [shape, dtype, order]
+      main_data_key: shape                        # Main data
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      bracket: False
+      val:
+        shape: False                              # Not use argument data
+        dtype: '%(mod)s%(main_func)s.new(%(data)s)' # convert function
+        order: False                              # Not use argument data
+    ones: # => ones : class_method
+      # ones(shape, dtype=None, order='C')
+      # => Numo::DFloat.ones(*args)
+      key:
+        - [shape, dtype, order]
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      val:
+        shape: True                               # Use argument data
+        dtype: '%(mod)s%(main_func)s.ones'        # np.ones(x) => Numo::DFloat.ones(x)
+        order: False                              # Not use argument data
+    zeros: # => zeros : class_method
+      # zeros(shape, dtype=None, order='C')
+      # => Numo::DFloat.zeros(*args)
+      key:
+        - [shape, dtype, order]
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      val:
+        shape: True                               # Use argument data
+        dtype: '%(mod)s%(main_func)s.zeros'       # np.zeros(x) => Numo::DFloat.zeros(x)
+        order: False                              # Not use argument data
+    full: # => fill : instance_method (reverse case)
+      # (shape, fill_value, dtype=None, order='C')
+      key:
+        - [shape, fill_value, dtype, order]
+      val:
+        shape: False                              # Not use argument data
+        fill_value: True                          # Use argument data
+      main_data_key: shape                        # Main data : %(data)s
+      main_func: '(%(data)s).fill'                # convert function : np.full(fill_value) => shape.fill(fill_value)
+    ndarray:
+      bracket: False
+      main_func: '%(mod)sNArray'                  # convert function : np.ndarray => Numo::NArray
+    nan:
+      bracket: False
+      main_func: 'Float::NAN'
+    inf:
+      bracket: False
+      main_func: 'Float::INFINITY'
+    sqrt: # => sqrt : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.sqrt'              # np.sqrt(x) => Numo::NMath.sqrt(x)
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    exp: # => exp : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.exp'               # np.exp(-x) => Numo::NMath.exp(-x)
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    sin: # => sin : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.sin'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    cos: # => cos : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.cos'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    tan: # => tan : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.tan'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    sinh: # => sinh : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.sinh'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    cosh: # => cosh : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.cosh'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    tanh: # => tanh : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.tanh'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    arcsin: # => asin : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.asin'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    arccos: # => acos : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.acos'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    arctan: # => atan : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.atan'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    arcsinh: # => asinh : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.asinh'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    arccosh: # => acosh : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.acosh'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    arctanh: # => atanh : class_method
+      # (x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func: '%(mod)sNMath.atanh'
+      key:
+        - [x, out, where, casting, order, dtype, subok]
+      val:
+        x: True
+    argmax: # => max_index : instance_method (reverse case)
+      # (a, axis=None, out=None)
+      key:
+        - [a, axis, out]
+      val:
+        a: False                                  # Not use argument data
+        axis: True                                # Use argument data
+      main_data_key: a                            # Main data : %(data)s
+      main_func: '(%(data)s).max_index'           # convert function : np.argmax(a, axis) => a.max_index(axis)
+    argmin: # => min_index : instance_method (reverse case)
+      # (a, axis=None, out=None)
+      key:
+        - [a, axis, out]
+      val:
+        a: False                                  # Not use argument data
+        axis: True                                # Use argument data
+      main_data_key: a                            # Main data : %(data)s
+      main_func: '(%(data)s).min_index'           # convert function : np.argmin(a, axis) => a.min_index(axis)
+    maximum: # => maximum : class_method
+      # (x1, x2, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      key:
+        - [x1, x2, out, where, casting, same_kind, order, dtype, subok]
+      val:
+        x1: True
+        x2: True
+        dtype: '%(mod)s%(main_func)s.maximum'     # np.maximum(x1, x2) => Numo::DFloat.maximum(x1, x2)
+    minimum: # => minimum : class_method
+      # (x1, x2, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj])
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      key:
+        - [x1, x2, out, where, casting, same_kind, order, dtype, subok]
+      val:
+        x1: True
+        x2: True
+        dtype: '%(mod)s%(main_func)s.minimum'     # np.minimum(x1, x2) => Numo::DFloat.minimum(x1, x2)
+    linspace: # => linspace : class_method
+      # (start, stop, num=50, endpoint=True, retstep=False, dtype=None)
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      key:
+        - [start, stop, num, endpoint, retstep, dtype]
+      val:
+        start: True
+        stop: True
+        num: True
+        endpoint : False
+        retstep : False
+        dtype: '%(mod)s%(main_func)s%(data)s.linspace' # np.linspace(2.0, 3.0, num=5) => Numo::DFloat.linspace(2.0, 3.0, 5)
+    absolute: &absolute # => abs : instance_method (reverse case)
+      # absolute(x, /, out=None, *, where=True, casting='same_kind', order='K', dtype=None, subok=True[, signature, extobj]) = <ufunc 'absolute'>
+      key:
+        - [x, out]
+      val:
+        x: False                              # Not use argument data
+        out: False                            # Not use argument data
+      main_data_key: x                        # Main data : %(data)s
+      main_func: '%(mod)sNArray.cast(%(data)s).abs'             # convert function : np.abs(a) => a.abs()
+    abs: *absolute
+    amax: &amax # => max : instance_method (reverse case)
+      # amax(a, axis=None, out=None, keepdims=<class 'numpy._globals._NoValue'>)
+      # => max(axis: nil, keepdims: false, nan: false)
+      key:
+        - [a, axis, out, keepdims]
+      val:
+        a: False                              # Not use argument data
+        axis: axis                            # Use keyword argument data
+        out: False                            # Not use argument data
+        keepdims: keepdims                    # Use keyword argument data
+      main_data_key: a                        # Main data : %(data)s
+      main_func: '%(mod)sNArray.cast(%(data)s).max'             # convert function : np.max(a) => a.max()
+    max: *amax
+    amin: &amin # => min : instance_method (reverse case)
+      # amin(a, axis=None, out=None, keepdims=<class 'numpy._globals._NoValue'>)
+      # => min(axis: nil, keepdims: false, nan: false)
+      key:
+        - [a, axis, out, keepdims]
+      val:
+        a: False                              # Not use argument data
+        axis: axis                            # Use keyword argument data
+        out: False                            # Not use argument data
+        keepdims: keepdims                    # Use keyword argument data
+      main_data_key: a                        # Main data : %(data)s
+      main_func: '%(mod)sNArray.cast(%(data)s).min'             # convert function : np.min(a) => a.min()
+    min: *amin
+    arange: # => seq : instance_method
+      # ([start, ]stop, [step, ]dtype=None)
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      key:
+        - [stop]                                  # argument count 1 case
+        - [start, stop, step, dtype]              # argument count 2,3,4 or over (not 1) case
+      val:
+        start: True
+        stop: True
+        step: True
+        dtype: '%(mod)s%(main_func)s%(data)s'
+      rtn: # rtn[0]-rtn[3]
+        - ""
+        # <Python> np.arange(6)
+        # <Ruby>   Numo::DFloat.new(6).seq(0)
+        #          => [0, 1, 2, 3, 4, 5]
+        - ".new(%(stop)s).seq(0)"
+        # <Python> np.arange(1,6) # s:start, e:stop
+        # <Ruby>   Numo::DFloat.new(6-1).seq(1)
+        #          => [1, 2, 3, 4, 5]
+        - ".new(%(stop)s-(%(start)s)).seq(%(start)s)"
+        # <Python> np.arange(1,6,2) # s:start, e:stop, t:step
+        # <Ruby>   Numo::DFloat.new(((6-1)/2.to_f).ceil).seq(1, 2)
+        #          =>[1, 3, 5]
+        - ".new(((%(stop)s-(%(start)s))/(%(step)s).to_f).ceil).seq(%(start)s, %(step)s)"
+    full: # => fill : instance_method
+      # full(shape, fill_value, dtype=None, order='C')
+      # => fill(other)
+      key:
+        - [shape, fill_value, dtype, order]
+      main_data_key: shape                        # Main data
+      main_func_key: dtype                        # convert function key name
+      main_func_hash_nm: 'DFloat'                 # convert function name (not match(default) case)
+      main_func_hash: *func_hash                  # convert function name
+      val:
+        shape: False                              # Not use argument data
+        fill_value: True                          # Use argument data
+        dtype: '%(mod)s%(main_func)s.new(%(data)s).fill' # convert function
+        order: False                              # Not use argument data
+    any: # => any? : instance_method
+      # (a, axis=None, out=None, keepdims=<class numpy._globals._NoValue>)
+      main_func: '%(mod)sBit.cast(%(data)s).any?'               # np.any([False]) => Numo::Bit.cast([False])any?()
+      main_data_key: a                       # Main data
+      key:
+        - [a, axis, out, keepdims]
+      val:
+        a: False
+        axis: axis
+    all: # => all? : instance_method
+      # (a, axis=None, out=None, keepdims=<class numpy._globals._NoValue>)
+      main_func: '%(mod)sBit.cast(%(data)s).all?'               # np.all([False]) => Numo::Bit.cast([False])all?()
+      main_data_key: a                       # Main data
+      key:
+        - [a, axis, out, keepdims]
+      val:
+        a: False
+        axis: axis
+    copy: # => dup : instance_method (reverse case)
+      # (a, order='K')
+      key:
+        - [a, order]
+      val:
+        a: False                              # Not use argument data
+        order: False                          # Not use argument data
+      main_data_key: a                        # Main data : %(data)s
+      main_func: '(%(data)s).dup'             # convert function : np.copy(a) => a.dup()
+    random.random: # => rand : instance_method
+      # uniformly distributed random numbers
+      # (size=None)
+      key:
+        - [size]
+      main_func: '%(mod)sDFloat'
+      val:
+        size: True                          # Use argument data
+      rtn: # rtn[0]-rtn[1]
+        # <Python> np.random.random()
+        # <Ruby>   Numo::DFloat.new().rand()
+        #          =>-0.456662
+        - '.new().rand()'
+        # <Python> np.random.ranndom((2,2)) # size
+        # <Ruby>   Numo::DFloat.new([2,2]).rand()
+        #          =>[[-0.456662, -0.656371], [-0.0616844, -0.97576]]
+        - '.new(%(size)s).rand()'
+    random.rand: # => rand : instance_method
+      # uniformly distributed random numbers
+      # (size=None)
+      key:
+        - ['*args']
+      val:
+        '*args': True    # Use star argument data
+      main_func: '%(mod)sDFloat'
+      rtn: # rtn[0]-rtn[1]
+        # <Python> np.random.rand()
+        # <Ruby>   Numo::DFloat.new().rand()
+        #          =>-0.456662
+        #- '.new().rand()'
+        # <Python> np.random.rand(2,2) # size
+        # <Ruby>   Numo::DFloat.new([2,2]).rand()
+        #          =>[[-0.456662, -0.656371], [-0.0616844, -0.97576]]
+        - ".new(%(*args)s).rand()"
+    random.uniform: # => rand : instance_method # Tentative Implementation. rand() is not uniform distribution.
+      # (low=0.0, high=1.0, size=None)
+      key:
+        - [low, high, size]
+      main_func: '%(mod)sDFloat'
+      val:
+        low: True                           # Use argument data
+        high: True                          # Use argument data
+        size: True                          # Use argument data
+      rtn: # rtn[0]-rtn[3]
+        - ''
+        - ''
+        # <Python> np.random.uniform(-1, 1) # low, high
+        # <Ruby>   Numo::DFloat.new().rand(1-(-1)) + (-1)
+        #          =>-0.456662
+        - '.new().rand(%(high)s-(%(low)s)) + %(low)s'
+        # <Python> np.random.uniform(-1, 1, (2,2)) # low, high, size
+        # <Ruby>   Numo::DFloat.new([2,2]).rand(1-(-1)) + (-1)
+        #          =>[[-0.456662, -0.656371], [-0.0616844, -0.97576]]
+        - '.new(%(size)s).rand(%(high)s-(%(low)s)) + (%(low)s)'
+    random.randint: # => rand : instance_method
+      # (low, high=None, size=None, dtype='l')
+      key:
+        - [low, high, size, dtype]
+      main_func_hash_nm: 'Int32'            # convert function name (not match(default) case)
+      main_func_hash: *func_hash            # convert function name
+      main_func_key: dtype                  # convert function key name
+      val:
+        low: True                           # Use argument data
+        high: True                          # Use argument data
+        size: True                          # Use argument data
+        dtype: '%(mod)s%(main_func)s'       # convert function
+      rtn: # rtn[0]-rtn[3]
+        - ''
+        # <Python> np.random.randint(3) # high
+        # <Ruby>   Numo::Int32.new([]).rand(3)
+        #          => 3
+        - '.new([]).rand(%(low)s)'
+        # <Python> np.random.randint(1,3) # low, high
+        # <Ruby>   Numo::Int32.new([]).rand(3 - 1) + 1
+        #          => 2
+        - '.new([]).rand(%(high)s-(%(low)s)) + %(low)s'
+        # <Python> np.random.randint(1,3,5) # low, high, size
+        # <Ruby>   Numo::Int32.new([2,2]).rand(3 - 1) + 1
+        #          => [[2, 2], [1, 1]]
+        - '.new(%(size)s).rand(%(high)s-(%(low)s)) + (%(low)s)'
