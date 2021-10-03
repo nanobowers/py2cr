@@ -6,7 +6,7 @@ import inspect
 import sys
 import os.path
 from optparse import OptionParser
-from . import formater
+from . import formatter
 import re
 import yaml
 import glob
@@ -52,13 +52,13 @@ class RB(object):
     using_key_map = {
         'all'        : 'EnumerableEx',
         'any'        : 'EnumerableEx',
-        'zip'        : 'PythonZipEx',
-        'find'       : 'PythonIndexEx',
-        'rfind'      : 'PythonIndexEx',
-        'split'      : 'PythonSplitEx',
-        'strip'      : 'PythonStripEx',
-        'lstrip'     : 'PythonStripEx',
-        'rstrip'     : 'PythonStripEx',
+#        'zip'        : 'PythonZipEx',
+#        'find'       : 'PythonIndexEx',
+#        'rfind'      : 'PythonIndexEx',
+#        'split'      : 'PythonSplitEx',
+#        'strip'      : 'PythonStripEx',
+#        'lstrip'     : 'PythonStripEx',
+#        'rstrip'     : 'PythonStripEx',
         'remove'     : 'PythonRemoveEx',
         'getattr'    : 'PythonMethodEx',
     }
@@ -81,8 +81,8 @@ class RB(object):
         'False' : 'false', # python 2.x
         'None'  : 'nil',   # python 2.x
         'str'   : 'String',
-        'int'   : 'Integer',
-        'float' : 'Float',
+        'int'   : 'Int32',
+        'float' : 'Float64',
         'list'  : 'Array',
         'tuple' : 'Array',
         'dict'  : 'Hash',
@@ -150,16 +150,29 @@ class RB(object):
     }
 
     attribute_map = {
-        'upper'    : 'upcase',      # String
-        'lower'    : 'downcase',    # String
+        # String
+        'count'      : "py_count",
+        'upper'      : 'upcase',
+        'lower'      : 'downcase',
+        'find'       : 'py_find',
+        'rfind'      : 'py_rfind',
+        'endswith'   : 'ends_with?',
+        'startswith' : 'starts_with?',
+        'replace'    : 'gsub',
+
+        'zip'        : 'py_zip',
+        'find'       : 'py_find',
+        'rfind'      : 'py_rfind',
+        'split'      : 'py_split',
+        'strip'      : 'py_strip',
+        'lstrip'     : 'py_lstrip',
+        'rstrip'     : 'py_rstrip',
+
+        # Array
         'append'   : 'push',        # Array
         'sort'     : 'sort!',       # Array
         'reverse'  : 'reverse!',    # Array
-        'find'     : 'index',       # String
-        'rfind'    : 'rindex',      # String
-        'endswith' : 'end_with?',   # String
         'extend'   : 'concat',      # Array
-        'replace'  : 'gsub',        # String
         'items'    : 'to_a',        # Hash
     }
     attribute_not_arg = {
@@ -167,7 +180,7 @@ class RB(object):
         'splitlines': 'split("\n")', # String
     }
     attribute_with_arg = {
-        'split'   : 'split_p',       # String
+        'split'   : 'py_split',       # String
     }
 
     call_attribute_map = set([       # Array
@@ -209,7 +222,7 @@ class RB(object):
         'Sub'    : '-',
         'Mult'   : '*',
         'Div'    : '/',
-        'FloorDiv' : '/', #'//',
+        'FloorDiv' : '//', # was '/'
         'Mod'    : '%',
         'LShift' : '<<',
         'RShift' : '>>',
@@ -266,14 +279,14 @@ class RB(object):
         if self._verbose:
             print("base_path_count[%s] dir_path: %s, path : %s : %s" % (self._base_path_count, dir_path, path, self._path))
             print("mod_paths : %s" % self.mod_paths)
-        self.__formater = formater.Formater()
-        self.capitalize = self.__formater.capitalize
-        self.write = self.__formater.write
-        self.read = self.__formater.read
-        self.clear = self.__formater.clear
-        self.indent = self.__formater.indent
-        self.dedent = self.__formater.dedent
-        self.indent_string = self.__formater.indent_string
+        self.__formatter = formatter.Formatter()
+        self.capitalize = self.__formatter.capitalize
+        self.write = self.__formatter.write
+        self.read = self.__formatter.read
+        self.clear = self.__formatter.clear
+        self.indent = self.__formatter.indent
+        self.dedent = self.__formatter.dedent
+        self.indent_string = self.__formatter.indent_string
         self.dummy = 0
         self.classes = ['dict', 'list', 'tuple']
         # This is the name of the class that we are currently in:
@@ -356,6 +369,7 @@ class RB(object):
         return self.comparison_op[node.__class__.__name__]
 
     def visit(self, node, scope=None):
+
         if self._mode == 2:
             node_name = self.name(node)
             if node_name not in ['Module', 'ImportFrom', 'Import', 'ClassDef', 'FunctionDef', 'Name', 'Attribute']:
@@ -940,10 +954,13 @@ class RB(object):
         """
         AnnAssign(expr target, expr value)
         """
+        # Type annotations in python.
+        # TODO figure out how to do them in Crystal
         target = self.visit(node.target)
+        anno =  self.visit(node.annotation)
         if node.value:
             value = self.visit(node.value)
-            self.write("%s = %s" % (target, value))
+            self.write("%s : %s = %s" % (target, anno, value))
 
     @scope
     def visit_For(self, node):
@@ -1750,6 +1767,7 @@ class RB(object):
         Name(identifier id, expr_context ctx)
         """
         id = node.id
+
         try:
             if self._call:
                 #if id in self.using_key_map:
@@ -1780,6 +1798,8 @@ class RB(object):
         """
         Bytes(bytes s)
         """
+        # Likely doesn't work at all.
+        # Unsure how to handle in Crystal at this time...
         return node.s
 
     # Python 3
@@ -1793,10 +1813,13 @@ class RB(object):
     # Python 3.8+ uses ast.Constant instead of ast.NamedConstant
     def visit_Constant(self, node):
         value = node.value
+
         if value is True or value is False or value is None:
             return self.name_constant_map[value]
         elif isinstance(value, str):
             return self.visit_Str(node)
+        elif isinstance(value, bytes):
+            return self.visit_Bytes(node)
         elif node.value == Ellipsis:
             return self.visit_Ellipsis(node)
         else:

@@ -57,9 +57,8 @@ def py_zip(a, *otherargs)
 end
 
 def py_zip(a)
-    [a.to_a]
+  [a.to_a]
 end
-
 
 def py_print(*args)
   # $, = " "   # array field separator
@@ -124,45 +123,44 @@ class String
       return ret.nil? ? -1 : ret
     end
 
-    def py_split(sep = "", limit=0)
-      case sep
-      when " "
-        sep = / /
-#      when ""
-#        sep = $;
-      end
-      if limit > 0
-        limit +=1
-      end
-      self.split(sep, limit)
+  def py_split(sep : String? = nil, maxsplit=-1) : Array(String)
+    case sep
+    when nil then sep = /\s+/
+    when " " then sep = / /
     end
+    if maxsplit > 0
+      self.split(sep, maxsplit + 1)
+    else
+      self.split(sep)
+    end
+  end
 
     def py_strip(chars : String = "")
       if chars == ""
-        super()
+        self.strip(chars)
       else
-         self.gsub(/(^[#{chars}]*)|([#{chars}]*$)/, "")
+        self.gsub(/(^[#{chars}]*)|([#{chars}]*$)/, "")
       end
     end
 
-    def py_lstrip(chars="")
+    def py_lstrip(chars : String = "")
       if chars == ""
-         super()
+         self.lstrip()
       else
          self.gsub(/(^[#{chars}]*)/, "")
       end
     end
 
-    def py_rstrip(chars="")
+    def py_rstrip(chars : String = "")
       if chars == ""
-         super()
+         self.rstrip()
       else
          self.gsub(/([#{chars}]*$)/, "")
       end
     end
     
     # Replace to Python String#count
-    def py_count(substr, start_pos=nil, end_pos=nil)
+    def py_count(substr : String, start_pos : Int32? = nil, end_pos : Int32? = nil)
       if start_pos.nil?
          self.scan(substr).size
       elsif end_pos.nil?

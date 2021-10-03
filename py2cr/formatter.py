@@ -1,9 +1,9 @@
 """ 
 A formatter module that keeps track of indentation
 """
-class Formater(object):
+class Formatter(object):
     """
-    A very simple code formater that handles efficient concatenation and indentation of lines.
+    A very simple code formatter that handles efficient concatenation and indentation of lines.
     """
 
     def __init__(self, indent_string="  "):
