@@ -33,12 +33,12 @@ sys:
   order_methods_with_bracket:
     exit: 'exit'
   attribute_map:
-    __stdin__: 'STDIN'
-    __stdout__: 'STDOUT'
-    __stderr__: 'STDERR'
-    stdin: 'STDIN'
-    stdout: 'STDOUT'
-    stderr: 'STDERR'
+    __stdin__: 'PySys.__stdin__'
+    __stdout__: 'PySys.__stdout__'
+    __stderr__: 'PySys.__stderr__'
+    stdin: 'PySys.stdin'
+    stdout: 'PySys.stdout'
+    stderr: 'PySys.stderr'
     argv: 'PySys.argv'
     
 copy:

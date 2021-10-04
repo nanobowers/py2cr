@@ -165,9 +165,13 @@ def compile_and_run_file_test(file_path, file_name=None):
             python_command = 'python "{py_path}" {argument_str} > "{py_out_path}" 2> "{py_error}"'.format(**self.templ)
             compile_command = 'python py2cr.py -p "{py_dir_path}" -r "{py_path}" -m -f -w -s 2> "{compiler_error}"'.format(**self.templ)
             crystal_command = 'crystal "{cr_path}" {argument_str} > "{cr_out_path}" 2> "{cr_error}"'.format(**self.templ)
-            commands = [python_command, compile_command, crystal_command]
+            command_stages = [
+                (python_command, "python"),
+                (compile_command, "py2cr"),
+                (crystal_command, "crystal") ]
+            
             with open(self.templ['cmd_out'], mode = 'w') as fh:
-                for cmd in commands:
+                for cmd, stage in command_stages:
                     fh.write(cmd + '\n')
                     #print(cmd) # debug
                     # The compile command should always exit cleanly.
@@ -177,17 +181,14 @@ def compile_and_run_file_test(file_path, file_name=None):
                     else:
                         exitstatus = self.templ["expected_exit_status"]
                     result_exit = os.system(cmd) >> 8
-                    self.assertEqual(exitstatus, result_exit)
+                    self.assertEqual(exitstatus, result_exit, stage)
                     self.reportProgres()
             # Partial Match
             if os.path.exists(self.templ["cr_out_expected_in_path"]):
                 # Fixed statement partial match
                 f = open(self.templ["cr_out_expected_in_path"])
                 g = open(self.templ["cr_out_path"])
-                self.assertIn(
-                    f.read(),
-                    g.read()
-                    )
+                self.assertIn(f.read(), g.read(), "diff")
                 f.close()
                 g.close()
             else: # Full text match
@@ -198,10 +199,7 @@ def compile_and_run_file_test(file_path, file_name=None):
                     expected_file_path = self.templ["py_out_path"]
                 f = open(expected_file_path, 'r')
                 g = open(self.templ["cr_out_path"])
-                self.assertEqual(
-                    f.readlines(),
-                    g.readlines()
-                    )
+                self.assertEqual(f.readlines(), g.readlines(), "diff")
                 f.close()
                 g.close()
             self.reportProgres()

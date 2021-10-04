@@ -55,9 +55,15 @@ class Py2RbTestResult(unittest.TestResult):
         self.__state = "known to [FAIL]"
 
     def addFailure(self, test, err):
+        """ Somewhat of a hack here to check the error-message to see if we
+        failed because of a difference in the output or we failed to compile. """
         super(Py2RbTestResult, self).addFailure(test, err)
+        message = err[1].args[0]
+        if message.endswith(": diff"):
+            self.__state = "[FAIL-Diff]"
+        else:
+            self.__state = "[FAIL-Compile]"
         self.__color = "Red"
-        self.__state = "[FAIL]"
 
     def stopTestRun(self):
         super(Py2RbTestResult, self).stopTestRun()

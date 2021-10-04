@@ -168,12 +168,12 @@ class RB(object):
         'lstrip'     : 'py_lstrip',
         'rstrip'     : 'py_rstrip',
 
-        # Array
         'append'   : 'push',        # Array
         'sort'     : 'sort!',       # Array
         'reverse'  : 'reverse!',    # Array
         'extend'   : 'concat',      # Array
         'items'    : 'to_a',        # Hash
+        'write'    : 'print',       # IO
     }
     attribute_not_arg = {
         'split'   : 'split',         # String

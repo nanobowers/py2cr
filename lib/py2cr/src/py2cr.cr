@@ -47,6 +47,8 @@ module PythonMethodEx
   end
 end
 
+## TODO: This is not working...
+
 # python : zip(l1, l2, [l3, ..])
 #  array : l1
 def py_zip(a, *otherargs)
@@ -98,7 +100,6 @@ class String
     return ret.nil? ? -1 : ret
   end
 
-
   def py_find(substr, start_pos : Int32 = 0, end_pos : Int32? = nil)
     if end_pos.nil?
       ret = index(substr, start_pos)
@@ -137,7 +138,7 @@ class String
 
     def py_strip(chars : String = "")
       if chars == ""
-        self.strip(chars)
+        self.strip()
       else
         self.gsub(/(^[#{chars}]*)|([#{chars}]*$)/, "")
       end
@@ -215,7 +216,7 @@ module PyLib
   
   def self.range(start, stop, step=1)
     curval = start
-    Enumerator.new() do |y|
+    Iterator.new() do |y|
       while step > 0 ? (curval < stop) : (curval > stop)
         y << curval
         curval += step
@@ -297,18 +298,28 @@ module PySys
   # Initialize with PROGRAM_NAME ($0) and ARGV
   @@argv : Array(String) = [PROGRAM_NAME, *ARGV]
 
-  # Override array getter function for this object.
-  # Python ARGV will throw an IndexError when out of bounds,
-  # so we use fetch here so that Crystal exhibits the same behavior
-  #TODO
-  #def @argv.[](idx)
-  #  self.fetch(idx)
-  #end
-
   # Class-instance-variable accessor
   class_getter :argv
-  #def self.argv
-  #  @argv
-  #end
 
+  # Create accessors similar to python sys.stdout/stderr and
+  # sys.__stdout__/__stderr__
+  
+  @@__stderr__ = STDERR
+  @@__stdin__ = STDIN
+  @@__stdout__ = STDOUT
+
+  @@stderr : IO = STDERR
+  @@stdin : IO = STDIN
+  @@stdout : IO = STDOUT
+
+  # get/set these.
+  class_property :stderr
+  class_property :stdin
+  class_property :stdout
+  
+  # do not allow setting these.
+  class_getter :__stderr__
+  class_getter :__stdin__
+  class_getter :__stdout__
+  
 end

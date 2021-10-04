@@ -4,8 +4,8 @@ import sys
 # sys.argv size
 print(len(sys.argv))
 
-# program-name, minus .## extension
-print(sys.argv[0][0:-3])
+# sys.argv[0] (program-name) will not be the same, so dont print it.
+# print(sys.argv[0])
 
 # first argument.  should raise IndexError if no arg given
 try:
