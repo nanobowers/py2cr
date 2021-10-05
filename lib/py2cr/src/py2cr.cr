@@ -12,6 +12,27 @@ class Method
   end
 end
 
+class Dir
+
+  # Similar to a unix find, but only gets the directory and subdirectories
+  def self.find_subdir_tree(dir)
+    ps = [dir]
+    outlist = [] of String
+    while !ps.empty? && (file = ps.shift)
+      if File.directory?(file)
+        outlist << file
+        fs = Dir.children(file)
+        fs.each do |f|
+          f = File.join(file, f)
+          ps.unshift f
+        end
+      end
+    end
+    outlist
+  end
+  
+end
+
 
 #
 # Foo.call() or Foo.() is nothing => Foo.new() call.
@@ -47,20 +68,24 @@ module PythonMethodEx
   end
 end
 
-## TODO: This is not working...
-
-# python : zip(l1, l2, [l3, ..])
-#  array : l1
+# Array python-zip with more than one arg.
+# Note that we allow nils to propagate from Crystal Enumerable#zip,
+# and then we have to filter out any cases with nils, then convert to an array.
 def py_zip(a, *otherargs)
-  #args = inargs.to_a.map {|i| i.is_a?(String) ? i.split("") : i}
-  #a = args.shift
-  #return a.zip(*args).select{|i| !i.includes?(nil)}
-  return a.zip(*otherargs).map(&.to_a)
+  return a.zip(*otherargs).select(&.all?).map(&.to_a)
 end
 
+# Array python-zip with one arg.
 def py_zip(a)
   [a.to_a]
 end
+
+# String variant of python-zip
+def py_zip(a : String, *otherargs : String)
+  rest = otherargs.map(&.chars)
+  return a.chars.zip?(*rest).select(&.all?).map(&.to_a)
+end
+
 
 def py_print(*args)
   # $, = " "   # array field separator
@@ -229,51 +254,29 @@ end
 
 module PyOs
 
-# tests/os/testdir/
-#              test_file1.txt
-#              test_file2.txt
-#              test_child_dir/
-#                  test_child_file1.txt
-#                  test_child_file2.txt
-#<dirpath>  tests/os/testdir
-#<dirnames> ['test_child_dir']
-#<filenames>['test_file1.txt', 'test_file2.txt']
-#
-#<dirpath>  tests/os/testdir/test_child_dir
-#<dirnames> []
-#<filenames>['test_child_file1.txt', 'test_child_file2.txt']
-
-#<dirpath> tests/os/testdir
-#<dirnames> ["tests/os/testdir/test_child_dir"]
-#<filenames> ["tests/os/testdir/test_child_dir/test_child_file1.txt", "tests/os/testdir/test_child_dir/test_child_file2.txt", "tests/os/testdir/test_file1.txt", "tests/os/testdir/test_file2.txt"]
-
+  # Should be equivalent of python walk function.
+  # Note that we create a new Dir.find_subdir_tree since Crystal has no
+  # builtin equivalent of a Unix `find`.
+  
   def self.walk(dir)
-    dirpath = Pathname.new(dir)
-    rootnames = [] of String
-    Pathname.new(dirpath).find do |path|
-      if path.directory?
-        rootnames << path.to_s
-      end
-    end
+    rootnames = Dir.find_subdir_tree(dir)
 
-    walks = [] of String
-    rootnames.each{|root|
+    walks = [] of Tuple(String, Array(String), Array(String))
+    
+    rootnames.each do |root|
       dirnames = [] of String
       filenames = [] of String
       
-      Dir.foreach(root){|f|
+      Dir.children(root).each do |f|
         path = File.join(root, f)
-        case File.ftype(path)
-        when "directory"
-          if ("." != f) && (".." != f)
-            dirnames << f
-          end
-        when "file"
+        if File.directory?(path)
+          dirnames << f
+        elsif File.file?(path)
           filenames << f
         end
-      }
-      walks << [root, dirnames, filenames]
-    }
+      end
+      walks << {root, dirnames, filenames}
+    end
 
     return walks
   end
@@ -286,7 +289,7 @@ module PyOs
 
   # os.getenv
   def self.getenv(arg)
-    return ENV[arg]
+    return ENV[arg]?
   end
   
 end

@@ -430,8 +430,14 @@ class RB(object):
     @scope
     def visit_FunctionDef(self, node):
         """ [Function Define] :
-        FunctionDef(identifier name, arguments args,stmt* body, expr* decorator_list, expr? returns) 
+        FunctionDef(identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns) 
         """
+
+        #print("NOOOODE")
+        #print(dir(node.returns.value.id))
+        #print(self.visit(node.returns))
+        #print(node.returns.value)
+        
         self._function.append(node.name)
         self._function_args = []
         is_static = False
@@ -476,46 +482,47 @@ class RB(object):
                         self.set_result(1)
                         sys.stderr.write("Warning : decorators are not supported : %s\n" % self.visit(node.decorator_list[0]))
 
+        #for a in node.args.args:
+        #    print(a.annotation.id)
+        
         defaults = [None]*(len(node.args.args) - len(node.args.defaults)) + node.args.defaults
         """ Class Method """
         if self._class_name:
-            if six.PY2:
-                self._scope = [arg.id for arg in node.args.args]
-            else:
-                self._scope = [arg.arg for arg in node.args.args]
+            self._scope = [arg.arg for arg in node.args.args]
 
         # get key for not keyword argument Call.
         rb_args_default = []
         # set normal and keyword argument Call.
         rb_args = []
         for arg, default in zip(node.args.args, defaults):
-            if six.PY2:
-                if not isinstance(arg, ast.Name):
-                    self.set_result(2)
-                    raise CrystalError("tuples in argument list are not supported")
-                arg_id = arg.id
-            else:
-                arg_id = arg.arg
+
+            arg_id = arg.arg
+
+            argxlist = [arg_id]
+            if arg.annotation:
+                argxlist.append(":")
+                argxlist.append(self.visit(arg.annotation))
             if default is None:
-                rb_args.append(arg_id)
                 rb_args_default.append(None)
             else:
-                rb_args.append("%s: %s" % (arg_id, self.visit(default)))
-                #rb_args.append("%s=%s" % (arg_id, self.visit(default)))
+                argxlist.append("=")
+                argxlist.append(self.visit(default))
                 rb_args_default.append(arg_id)
+            rb_args.append(" ".join(argxlist))
 
-        """ [Function method argument with Muliti Variables] : 
-        <Python> def foo(fuga, hoge):
-                 def bar(fuga, hoge, *piyo):
+        """ 
+        [Function method argument with Multiple Variables] : 
+        <Python>    def foo(fuga, hoge):
+                    def bar(fuga, hoge, *piyo):
         <Crystal>   def foo(fuga, hoge)
-                 def bar(fuga, hoge, *piyo)
-            [Class instance method] : 
-        <Python> class foo:
-                     def __init__(self, fuga):
-                     def bar(self, hoge):
+                    def bar(fuga, hoge, *piyo)
+        [Class instance method] : 
+        <Python>    class foo:
+                        def __init__(self, fuga):
+                        def bar(self, hoge):
         <Crystal>   class Foo
-                     def initialize(fuga)
-                     def bar(hoge)
+                        def initialize(fuga)
+                        def bar(hoge)
         """
         if len(self._function) != 1:
             is_closure = True
@@ -541,31 +548,19 @@ class RB(object):
 
         """ star arguments """
         if node.args.vararg:
-            if six.PY2:
-                vararg = "*%s" % node.args.vararg
-            else:
-                vararg = "*%s" % self.visit(node.args.vararg)
+            vararg = "*%s" % self.visit(node.args.vararg)
             rb_args.append(vararg)
             rb_args_default.append([None])
 
         """ keyword only arguments """
         for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
-            if six.PY2:
-                if not isinstance(arg, ast.Name):
-                    self.set_result(2)
-                    raise CrystalError("tuples in argument list are not supported")
-                arg_id = arg.id
-            else:
-                arg_id = arg.arg
+            arg_id = arg.arg
             rb_args.append("%s: %s" % (arg_id, self.visit(default)))
             rb_args_default.append(arg_id)
 
         """ double star arguments """
         if node.args.kwarg:
-            if six.PY2:
-                kwarg = "**%s" % node.args.kwarg
-            else:
-                kwarg = "**%s" % self.visit(node.args.kwarg)
+            kwarg = "**%s" % self.visit(node.args.kwarg)
             rb_args.append(kwarg)
             rb_args_default.append([])
         self._function_args = rb_args
@@ -627,13 +622,13 @@ class RB(object):
             self._scope = []
         else:
             if node.decorator_list:
-                """ [method argument set Method Objec] :
+                """ [method argument set Method Object] :
                 <Python> @mydecorator
                          def describe():
                              pass
                 <Crystal>   def describe()
-                         end
-                         describe = mydecorator(method(:describe))
+                            end
+                            describe = mydecorator(method(:describe))
                 """
                 if len(node.decorator_list) == 1 and \
                     isinstance(node.decorator_list[0], ast.Name):
@@ -646,7 +641,8 @@ class RB(object):
 
     @scope
     def visit_ClassDef(self, node):
-        """ [Class Define] : 
+        """ 
+        [Class Define] : 
         ClassDef(identifier name,expr* bases, keyword* keywords, stmt* body,expr* decorator_list)
         """
         self._self_functions = []
@@ -952,6 +948,7 @@ class RB(object):
 
     def visit_AnnAssign(self, node):
         """
+        AnnAssign is an assignment with a type annotation.
         AnnAssign(expr target, expr value)
         """
         # Type annotations in python.
