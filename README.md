@@ -1,7 +1,7 @@
 # py2cr.py
 
-A code translator using AST from Python to Ruby. This is basically a
-NodeVisitor with Ruby output. See ast documentation
+A code translator using AST from Python to Crystal. This is basically a
+NodeVisitor with Crystal output. See ast documentation
 (<https://docs.python.org/3/library/ast.html>) for more information.
 
 ## Installation
@@ -12,13 +12,13 @@ pip install py2cr
 ```
 or
 ```
-git clone git://github.com/naitoh/py2cr.git
+git clone git://github.com/nanobowers/py2cr.git
 ```
 
 ## Versions
 
-- Python 3.5 .. 3.8
-- Ruby 2.4 .. 3.0
+- Python 3.5 .. 3.9
+- Crystal 1.1 ..
 
 ## Dependencies
 
@@ -26,217 +26,34 @@ git clone git://github.com/naitoh/py2cr.git
 
     pip install six 
     pip install pyyaml 
-    pip install numpy
+    pip install numpy   # probably not really needed since
 
-### Ruby
+### Crystal
 
-    gem install numo-narray
+    * currently none *
 
 ## Methodology
 
-In addition to walking and writing the AST tree and writing a Ruby
+In addition to walking and writing the AST tree and writing a Crystal
 syntax output, this tool either: 
-- Monkey-patches (or refines) some common Ruby Modules and Classes in order to emulate the Python equivalent.
-- Calls equivalent Ruby methods to the Python equivalent
-- Calls wrapped ruby methods that provide Python equivalent functionality
+- Monkey-patches some common Crystal stdlib Structs/Classes in order to emulate the Python equivalent.
+- Calls equivalent Crystal methods to the Python equivalent
+- Calls wrapped Crystal methods that provide Python equivalent functionality
 
 ## Usage
 
-Sample 1:
+Generally, `py2cr.py somefile.py > somefile.cr`
 
-    $ cat tests/basic/oo_inherit_simple.py
+There is a Crystal shim/wrapper library in `lib/py2cr` that is also referenced in the generated script.  You may need to copy that as needed, though eventually it may be appropriate to convert it to a shard if that is more appropriate.
 
-```python
-class bar(object):
+*TODO: need better explanation of this...*
 
-    def __init__(self,name):
-        self.name = name
-
-    def setname(self,name):
-        self.name = name
-
-class foo(bar):
-
-    registered = []
-
-    def __init__(self,val,name):
-        self.fval = val
-        self.register(self)
-        self.name = name
-
-    def inc(self):
-        self.fval += 1
-
-    def msg(self, a=None, b=None, c=None):
-        txt = ''
-        varargs = a, b, c
-        for arg in varargs:
-            if arg is None:
-                continue
-            txt += str(arg)
-            txt += ","
-        return txt + self.name + " says:"+str(self.fval)
-
-    @staticmethod
-    def register(f):
-        foo.registered.append(f)
-
-    @staticmethod
-    def printregistered():
-        for r in foo.registered:
-            print(r.msg())
-
-a = foo(10,'a')
-a.setname('aaa')
-b = foo(20,'b')
-c = foo(30,'c')
-
-a.inc()
-a.inc()
-c.inc()
-
-print(a.msg())
-print(b.msg())
-print(c.msg(2,3,4))
-
-print("---")
-
-foo.printregistered()
-```
-
-The above will result in :
-
-    $ py2cr tests/basic/oo_inherit_simple.py
-
-```ruby
-class Bar
-  def initialize(name)
-    @name = name
-  end
-  def setname(name)
-    @name = name
-  end
-end
-class Foo < Bar
-  def method_missing(method, *args)
-    self.class.__send__ method, *args
-  end
-  @@registered = []
-  def initialize(val, name)
-    @fval = val
-    Foo.register(self)
-    @name = name
-  end
-  def inc()
-    @fval += 1
-  end
-  def msg(a: nil, b: nil, c: nil)
-    txt = ""
-    varargs = [a, b, c]
-    for arg in varargs
-      if arg === nil
-        next
-      end
-      txt += arg.to_s
-      txt += ","
-    end
-    return ((txt + @name) + " says:") + @fval.to_s
-  end
-  def self.register(f)
-    @@registered.push(f)
-  end
-  def self.printregistered()
-    for r in @@registered
-      print(r.msg())
-    end
-  end
-  def self.registered; @@registered; end
-  def self.registered=(val); @@registered=val; end
-  def registered; @registered = @@registered if @registered.nil?; @registered; end
-  def registered=(val); @registered=val; end
-end
-a = Foo.new(10, "a")
-a.setname("aaa")
-b = Foo.new(20, "b")
-c = Foo.new(30, "c")
-a.inc()
-a.inc()
-c.inc()
-print(a.msg())
-print(b.msg())
-print(c.msg(a: 2, b: 3, c: 4))
-print("---")
-Foo.printregistered()
-```
-
-Sample 2:
-
-    $ cat tests/deep-learning-from-scratch/and_gate.py
-
-```python
-# coding: utf-8
-import numpy as np
-
-def AND(x1, x2):
-    x = np.array([x1, x2])
-    w = np.array([0.5, 0.5])
-    b = -0.7
-    tmp = np.sum(w*x) + b
-    if tmp <= 0:
-        return 0
-    else:
-        return 1
-
-if __name__ == '__main__':
-    for xs in [(0, 0), (1, 0), (0, 1), (1, 1)]:
-        y = AND(xs[0], xs[1])
-        print(str(xs) + " -> " + str(y))
-```
-
-The above will result in :
-
-    $ py2cr tests/deep-learning-from-scratch/and_gate.py
-```ruby
-require 'numo/narray'
-def AND(x1, x2)
-  x = Numo::NArray.cast([x1, x2])
-  w = Numo::NArray.cast([0.5, 0.5])
-  b = -0.7
-  tmp = ((w * x).sum()) + b
-  if tmp <= 0
-    return 0
-  else
-    return 1
-  end
-end
-
-if __FILE__ == $0
-  for xs in [[0, 0], [1, 0], [0, 1], [1, 1]]
-    y = AND(xs[0], xs[1])
-    print((xs.to_s + (" -> ")) + y.to_s)
-  end
-end
-```
-Sample 3 (Convert all local dependent module files of specified Python
-file):
-```
-$ git clone git://github.com/chainer/chainer.git
-$ py2cr chainer/chainer/__init__.py -m -p chainer -r -w -f
-Try : chainer/chainer/__init__.py -> chainer/chainer/__init__.rb : [OK]
-Warning : yield is not supported :
-Warning : yield is not supported :
-Try  : chainer/chainer/configuration.py -> chainer/chainer/configuration.rb : [Warning]
-Try  : chainer/chainer/cuda.py -> chainer/chainer/cuda.rb : [OK]
-      :
-      :
-Try  : chainer/chainer/utils/array.py -> chainer/chainer/utils/array.rb : [OK]
-```
 ## Tests
 ```
 $ ./run_tests.py
 ```
-Will run all tests, that are supposed to work. If any test fails, it\'s
-a bug.
+Will run all tests that are supposed to work. If any test fails, its
+a bug.  (Currently there are a lot of failing tests!!)
 ```
 $ ./run_tests.py -a
 ```
@@ -256,16 +73,48 @@ For additional information on flags, run:
 ### Writing new tests
 Adding tests for most new or existing functionality involves adding additional python files at `tests/<subdirectory/<testname>.py`.
 
-The test-runner scripts will automatically run py2cr to produce a ruby script, then run both the python and ruby scripts, then compare stdout/stderr and check return codes.
+The test-runner scripts will automatically run py2cr to produce a Crystal script, then run both the Python and Crystal scripts, then compare stdout/stderr and check return codes.
 
 For special test-cases, it is possible to provide a configuration YAML file on a per test basis named `tests/<subdirectory>/<testname>.config.yaml` which overrides defaults for testing.  The following keys/values are supported:
 
 ```
 min_python_version: [int, int] # minimum major/minor version
 max_python_version: [int, int] # maximum major/minor version
-expected_exit_status: int      # exit status for py/rb test script
+expected_exit_status: int      # exit status for py/cr test script
 argument_list: [str, ... str]  # list of strings as extra args for argv
 ```
+
+## Typing
+
+Some amount of typing support in Python is translated to Crystal.  There is still more work to do regarding initializing empty data-types on the Crystal side where the compiler cannot infer the type from a bare `[]` or `{}`
+
+## To-do
+
+This is incomplete and many of the tests brought forward from py2rb do not pass.  Some of them may never pass as-is due to significant language / compilation differences (even moreso than Python vs. Ruby)
+
+To some extent, it will always be incomplete.  The goal is to cover common cases and reduce the additional work to minimum-viable-program.
+
+## Contribute
+
+Free to submit an issue.   This is very much a work in progress, contributions or constructive feedback is welcome.
+
+If you'd like to hack on `py2cr`, start by forking the repo on GitHub:
+
+https://github.com/nanobowers/py2cr
+
+## Contributing
+
+The best way to get your changes merged back into core is as follows:
+
+1. Fork it (<https://github.com/nanobowers/py2cr/fork>)
+2. Create a thoughtfully named topic branch to contain your change (`git checkout -b my-new-feature`)
+3. Hack away
+4. Add tests and make sure everything still passes by running `crystal spec`
+5. If you are adding new functionality, document it in the README
+8. If necessary, rebase your commits into logical chunks, without errors
+9. Commit your changes (`git commit -am 'Add some feature'`)
+10. Push to the branch (`git push origin my-new-feature`)
+11. Create a new Pull Request
 
 ## License
 
