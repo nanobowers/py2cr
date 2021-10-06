@@ -18,25 +18,31 @@ git clone git://github.com/nanobowers/py2cr.git
 ## Versions
 
 - Python 3.5 .. 3.9
-- Crystal 1.1 ..
+- Crystal 1.1+
 
 ## Dependencies
 
 ### Python
 
-    pip install six 
-    pip install pyyaml 
-    pip install numpy   # probably not really needed since
+```
+pip install pyyaml
+
+# Probably not needed for much longer since py2 support is going to be removed.
+pip install six 
+
+# Probably not really needed since there is no crystal equivalent
+pip install numpy
+```
 
 ### Crystal
 
-    * currently none *
+* currently none *
 
 ## Methodology
 
 In addition to walking and writing the AST tree and writing a Crystal
 syntax output, this tool either: 
-- Monkey-patches some common Crystal stdlib Structs/Classes in order to emulate the Python equivalent.
+- Monkey-patches some common Crystal stdlib Structs/Classes in order to emulate the Python equivalent functionality.
 - Calls equivalent Crystal methods to the Python equivalent
 - Calls wrapped Crystal methods that provide Python equivalent functionality
 
@@ -54,11 +60,18 @@ $ ./run_tests.py
 ```
 Will run all tests that are supposed to work. If any test fails, its
 a bug.  (Currently there are a lot of failing tests!!)
+
 ```
 $ ./run_tests.py -a
 ```
 Will run all tests including those that are known to fail (currently).
 It should be understandable from the output.
+
+```
+$ ./run_tests.py basic
+```
+Will run all tests matching *basic*.  Useful because running the entire test-suite can take a while.
+
 ```
 $ ./run_tests.py -x or $ ./run_tests.py --no-error
 ```
@@ -88,11 +101,20 @@ argument_list: [str, ... str]  # list of strings as extra args for argv
 
 Some amount of typing support in Python is translated to Crystal.  There is still more work to do regarding initializing empty data-types on the Crystal side where the compiler cannot infer the type from a bare `[]` or `{}`
 
-## To-do
+## Status
 
 This is incomplete and many of the tests brought forward from py2rb do not pass.  Some of them may never pass as-is due to significant language / compilation differences (even moreso than Python vs. Ruby)
 
 To some extent, it will always be incomplete.  The goal is to cover common cases and reduce the additional work to minimum-viable-program.
+
+## To-do
+
++ [ ] Remove python2/six dependencies to reduce clutter. Py2 has been end-of-lifed for a while now.
++ [ ] Remove numpy dependencies unless/until a suitable target for Crystal can be identified
++ [ ] Add additional Crystal shim methods to translate common python3 stdlib methods.  Consider a mode that just maps to a close Crystal method rather than using a shim-method to reduce the python-ness.
++ [ ] Refactor the code-base.  Most of it is in the `__init__.py`
++ [ ] Add additional unit-tests
++ [ ] Multi-thread the test-suite so it can run faster.
 
 ## Contribute
 
