@@ -3,7 +3,7 @@ class myclass(object):
 
     """This is a class that really says something"""
 
-    def __init__(self,msg):
+    def __init__(self, msg : str):
         self.msg = msg
 
     def saysomething(self):

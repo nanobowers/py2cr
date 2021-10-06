@@ -6,12 +6,15 @@ import inspect
 import sys
 import os.path
 from optparse import OptionParser
-from . import formatter
 import re
 import yaml
 import glob
 import copy
 from collections import OrderedDict
+
+# local code
+from . import formatter
+from . import types
 
 try:
     ast.Constant()
@@ -50,8 +53,8 @@ class RB(object):
     }
 
     using_key_map = {
-        'all'        : 'EnumerableEx',
-        'any'        : 'EnumerableEx',
+#        'all'        : 'EnumerableEx',
+#        'any'        : 'EnumerableEx',
 #        'zip'        : 'PythonZipEx',
 #        'find'       : 'PythonIndexEx',
 #        'rfind'      : 'PythonIndexEx',
@@ -59,10 +62,10 @@ class RB(object):
 #        'strip'      : 'PythonStripEx',
 #        'lstrip'     : 'PythonStripEx',
 #        'rstrip'     : 'PythonStripEx',
-        'remove'     : 'PythonRemoveEx',
-        'getattr'    : 'PythonMethodEx',
+#        'remove'     : 'PythonRemoveEx',
+#        'getattr'    : 'PythonMethodEx',
     }
-
+    
     # python 3
     name_constant_map = {
         True  : 'true',
@@ -117,10 +120,15 @@ class RB(object):
     # isinstance(foo, String) => foo.is_a?(String)
     methods_map_middle = {
         'isinstance' : 'is_a?',
+
         'hasattr'    : 'instance_variable_defined?',
         #'getattr'    : 'send',
         #'getattr'    : 'method',
         'getattr'    : 'getattr',
+        'all' : 'is_all?',
+        'any' : 'is_any?',
+        'remove': 'py_remove',
+        'getattr': 'py_getattr',
     }
     # np.array([x1, x2]) => Numo::NArray[x1, x2]
     order_methods_with_bracket = {}
@@ -151,14 +159,14 @@ class RB(object):
 
     attribute_map = {
         # String
-        'count'      : "py_count",
+        'count'      : 'py_count',
         'upper'      : 'upcase',
         'lower'      : 'downcase',
         'find'       : 'py_find',
         'rfind'      : 'py_rfind',
         'endswith'   : 'ends_with?',
         'startswith' : 'starts_with?',
-        'replace'    : 'gsub',
+        'replace'    : 'py_replace', # could distinguish gsub case if we were based on #-args.
 
         'zip'        : 'py_zip',
         'find'       : 'py_find',
@@ -174,6 +182,7 @@ class RB(object):
         'extend'   : 'concat',      # Array
         'items'    : 'to_a',        # Hash
         'write'    : 'print',       # IO
+        'read'     : 'py_read',     # IO
     }
     attribute_not_arg = {
         'split'   : 'split',         # String
@@ -306,7 +315,7 @@ class RB(object):
         # Python original class name
         self._class_names = set()
 
-        # Crystal class name (first charcer Capitalize)
+        # Crystal class name (first character is Capitalized)
         self._rclass_names = set()
         self._classes = {}
 
@@ -433,11 +442,6 @@ class RB(object):
         FunctionDef(identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns) 
         """
 
-        #print("NOOOODE")
-        #print(dir(node.returns.value.id))
-        #print(self.visit(node.returns))
-        #print(node.returns.value)
-        
         self._function.append(node.name)
         self._function_args = []
         is_static = False
@@ -455,12 +459,12 @@ class RB(object):
                         elif decorator.id == "property":
                             is_property = True
                             """
-                            <Python> @property
-                                     def x(self):
-                                         return self._x
+                            <Python>    @property
+                                        def x(self):
+                                            return self._x
                             <Crystal>   def x
-                                         @_x
-                                     end
+                                            @_x
+                                        end
                             """
                         else:
                             if self._mode == 1:
@@ -501,7 +505,9 @@ class RB(object):
             argxlist = [arg_id]
             if arg.annotation:
                 argxlist.append(":")
-                argxlist.append(self.visit(arg.annotation))
+                anno = types.CrystalTypes(arg.annotation)
+                argxlist.append(anno.visit())
+                # argxlist.append(self.visit(arg.annotation))
             if default is None:
                 rb_args_default.append(None)
             else:
@@ -600,7 +606,12 @@ class RB(object):
                 #self.write("def self.%s(%s)" % (func_name, rb_args))
             #else:
             #    self.write("def %s(%s)" % (func_name, rb_args))
-            self.write("def %s(%s)" % (func_name, rb_args))
+            ## Adding support for annotated return-type
+            if node.returns:
+                anno = types.CrystalTypes(node.returns).visit()
+                self.write("def %s(%s) : %s" % (func_name, rb_args, anno))
+            else:
+                self.write("def %s(%s)" % (func_name, rb_args))
 
         if self._class_name is None:
             #
@@ -837,17 +848,18 @@ class RB(object):
                 raise Exception("Bad stmt in visit_Delete %s" % type(stmt))
 
         if num != '':
-            """ <Python> del foo[0]
+            """ <Python>    del foo[0]
                 <Crystal>   foo.delete_at[0] """
             self.write("%s.delete_at(%s)" % (id, num))
         elif key != '':
-            """ <Python> del foo['hoge']
+            """ <Python>    del foo['hoge']
                 <Crystal>   foo.delete['hoge'] """
             self.write("%s.delete(%s)" % (id, key))
         elif slice != '':
-            """ <Python> del foo[1:3]
-                <Crystal>   foo.slice!(1...3) """
-            self.write("%s.slice!(%s)" % (id, slice))
+            """ <Python>    del foo[1:3]
+                <Crystal>   py_del(foo, 1...3) """
+            # note py_del is defined for Array/Range args.
+            self.write("py_del(%s, %s)" % (id, slice))
         elif attr != '':
             """ <Python> del foo.bar
                 <Crystal>   foo.instance_eval { remove_instance_variable(:@bar) } """
@@ -954,7 +966,8 @@ class RB(object):
         # Type annotations in python.
         # TODO figure out how to do them in Crystal
         target = self.visit(node.target)
-        anno =  self.visit(node.annotation)
+        anno = types.CrystalTypes(node.annotation).visit()
+        #anno =  self.visit(node.annotation)
         if node.value:
             value = self.visit(node.value)
             self.write("%s : %s = %s" % (target, anno, value))
@@ -1255,7 +1268,7 @@ class RB(object):
                     self._import_files.append(os.path.join(self._dir_path, rel_path).replace('/', '.'))
                     if self._verbose:
                          print("Import self._import_files: %s" % self._import_files)
-                    self.write("require_relative \"%s\"" % rel_path)
+                    self.write("require \"./%s\"" % rel_path)
 
             if node.names[0].asname != None:
                 if node.names[0].name in self._import_files:
@@ -1414,7 +1427,7 @@ class RB(object):
                     print("ImportFrom mod_name : %s rel_path : %s" % (mod_name, rel_path))
                 if node.names[0].name != '*':
                     if path.endswith(mod_name_i + '.py'):
-                        self.write("require_relative \"%s\"" % rel_path)
+                        self.write("require \"%s\"" % rel_path)
                         dir_path = os.path.relpath(mod_name, self._dir_path)
                         if dir_path != '.':
                             self._import_files.append(os.path.relpath(rel_path, dir_path).replace('/', '.'))
@@ -1424,10 +1437,10 @@ class RB(object):
                             print("ImportFrom self._import_files: %s" % self._import_files)
                         break
                 if path.endswith(mod_name + '.py'):
-                    self.write("require_relative \"%s\"" % rel_path)
+                    self.write("require \"%s\"" % rel_path)
                     break
             else:
-                self.write("require_relative \"%s\"" % mod_name)
+                self.write("require \"%s\"" % mod_name)
             base = '::'.join([self.capitalize(x) for x in node.module.split('.')[self._base_path_count:]])
             self.write("include %s" % base)
 
@@ -1441,7 +1454,7 @@ class RB(object):
                     self._class_names.add(node.names[0].asname)
                     self._classes_self_functions_args[node.names[0].asname] = self._classes_self_functions_args[node.names[0].name]
                 else:
-                    self.write("alias %s %s" % (node.names[0].asname, node.names[0].name))
+                    self.write("#alias %s %s" % (node.names[0].asname, node.names[0].name))
             return
 
         """
@@ -1716,10 +1729,13 @@ class RB(object):
                     <Crystal>    __FILE__ == $0          """
                 left = '__FILE__'
                 comp = '$0'
+            # Cannot necessarily use includes?, as includes? is not
+            # defined for Hashes in Crystal, so chose to define a py_in?
+            # method on String/Array/Hash
             if isinstance(op, ast.In):
-                return "%s.includes?(%s)" % (comp, left)
+                return "%s.py_in?(%s)" % (comp, left)
             elif isinstance(op, ast.NotIn):
-                return "!%s.includes?(%s)" % (comp, left)
+                return "!%s.py_in?(%s)" % (comp, left)
             elif isinstance(op, ast.Eq):
                 return "%s == %s" % (left, comp)
             elif isinstance(op, ast.NotEq):
@@ -2143,7 +2159,7 @@ class RB(object):
                 """
                 base = '::'.join([self.capitalize(x) for x in f.split('.')[self._base_path_count:]])
                 if base != '':
-                    func = base + '::' + func
+                    func = base + '.' + func # was '::'
                 if self._verbose:
                     print("Call func: %s" % func)
                 break
@@ -2324,30 +2340,31 @@ class RB(object):
             else:
                 """ <Python> map(foo, [1, 2])
                     <Crystal>   [1, 2].map{|_|foo(_)} """
-                return "%s.%s{|_| %s(_)}" % (rb_args[1], func, rb_args[0])
+                # TODO: using a named 'genvar' is not the safest way to do this
+                return "%s.%s{|genvar| %s(genvar)}" % (rb_args[1], func, rb_args[0])
         elif func in self.range_map:
             """ [range] """
             if len(node.args) == 1:
-                """ [0, 1, 2] <Python> range(3)
+                """ [0, 1, 2] <Python>    range(3)
                               <Crystal>   3.times """
                 return "%s.times" % (self.ope_filter(rb_args[0]))
             elif len(node.args) == 2:
-                """ [2, 3, 4] <Python> range(2,5)  # s:start, e:stop
+                """ [2, 3, 4] <Python>    range(2,5)  # s:start, e:stop
                               <Crystal>   PyLib.range(2, 5) """
                 rangedict = {
                     'start':self.ope_filter(rb_args[0]),
                     'stop':self.ope_filter(rb_args[1])
                 }
-                return "PyLib.range(%(start)s, %(stop)s)" % rangedict
+                return "PyRange.range(%(start)s, %(stop)s)" % rangedict
             else:
-                """ [1, 4, 7] <Python> range(1,10,3) # s:start, e:stop, t:step
+                """ [1, 4, 7] <Python>    range(1,10,3) # s:start, e:stop, t:step
                               <Crystal>   PyLib.range(1, 10, 3) """
                 rangedict = {
                     'start':self.ope_filter(rb_args[0]),
                     'end':self.ope_filter(rb_args[1]),
                     'step':self.ope_filter(rb_args[2])
                 }
-                return "PyLib.range(%(start)s, %(end)s, %(step)s)" % rangedict
+                return "PyRange.range(%(start)s, %(end)s, %(step)s)" % rangedict
         elif func in self.list_map:
             """ [list]
             <Python> list(range(3))
@@ -2728,23 +2745,23 @@ class RB(object):
         if node.lower and node.upper:
             if node.step:
                 """ <Python> [8, 9, 10, 11, 12, 13, 14][1:6:2]
-                    <Crystal>   [8, 9, 10, 11, 12, 13, 14][1...6].each_slice(2).map(&:first) """
-                return "%s...%s,each_slice(%s).map(&:first)" % (self.visit(node.lower),
+                    <Crystal>   [8, 9, 10, 11, 12, 13, 14][1...6].each_slice(2).map(&.first) """
+                return "%s...%s,each_slice(%s).map(&.first)" % (self.visit(node.lower),
                     self.visit(node.upper), self.visit(node.step))
             else:
                 return "%s...%s" % (self.visit(node.lower), self.visit(node.upper))
         if node.upper:
             if node.step:
-                return "0...%s,each_slice(%s).map(&:first)" % (self.visit(node.upper), self.visit(node.step))
+                return "0...%s,each_slice(%s).map(&.first)" % (self.visit(node.upper), self.visit(node.step))
             else:
                 return "0...%s" % (self.visit(node.upper))
         if node.lower:
             if node.step:
-                return "%s..-1,each_slice(%s).map(&:first)" % (self.visit(node.lower), self.visit(node.step))
+                return "%s..-1,each_slice(%s).map(&.first)" % (self.visit(node.lower), self.visit(node.step))
             else:
                 return "%s..-1" % (self.visit(node.lower))
         if node.step:
-            return "0..-1,each_slice(%s).map(&:first)" % self.visit(node.step)
+            return "0..-1,each_slice(%s).map(&.first)" % self.visit(node.step)
         else:
             return "0..-1"
 
@@ -2767,7 +2784,7 @@ class RB(object):
             if ',' in index:
                 """ [See visit_Slice]
                 <Python> [8, 9, 10, 11, 12, 13, 14][1:6:2]
-                <Crystal>   [8, 9, 10, 11, 12, 13, 14][1...6].each_slice(2).map(&:first)
+                <Crystal>   [8, 9, 10, 11, 12, 13, 14][1...6].each_slice(2).map(&.first)
                 """
                 indexs = index.split(',')
                 return "%s[%s].%s" % (self.ope_filter(name), indexs[0], indexs[1])

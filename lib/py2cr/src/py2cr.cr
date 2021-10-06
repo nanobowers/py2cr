@@ -113,8 +113,60 @@ def py_is_bool(a)
   end
 end
 
+def py_del(ary : Array(U), rng : Range(U,U) ) forall T, U
+  ary.replace ary.each_with_index.reject { |(x,i)| rng.includes?(i) }.map(&.first).to_a
+end
+
 
 class String
+
+  def py_in?(substr : String)
+    self.includes?(substr)
+  end
+  
+  # Two argument replace is just a gsub (replaces all)
+  def py_replace(substr, replace_value)
+    self.gsub(substr, replace_value)
+  end
+
+  # Three argument replace is harder..
+  # This is a blatant ripoff of gsub in stdlib with tweaks
+    def py_replace(string : String, replacement, numtimes : Int32) : String
+    py_replace(string, numtimes) { replacement }
+  end
+      
+  def py_replace(string : String, numtimes : Int32, &block)
+    byte_offset = 0
+    index = self.byte_index(string, byte_offset)
+    return self unless index
+
+    last_byte_offset = 0
+    replace_count = 0
+    
+    String.build(bytesize) do |buffer|
+      while index && (replace_count < numtimes)
+        buffer.write unsafe_byte_slice(last_byte_offset, index - last_byte_offset)
+        buffer << yield string
+
+        replace_count += 1
+
+        if string.bytesize == 0
+          byte_offset = index + 1
+          last_byte_offset = index
+        else
+          byte_offset = index + string.bytesize
+          last_byte_offset = byte_offset
+        end
+
+        index = self.byte_index(string, byte_offset)
+      end
+
+      if last_byte_offset < bytesize
+        buffer.write unsafe_byte_slice(last_byte_offset)
+      end
+    end
+  end
+  
   def py_index(substr, offset=0)
     ret = self.index(substr, offset)
     return ret.nil? ? -1 : ret
@@ -201,12 +253,36 @@ class String
 end
 
 class Array
-    def py_remove(obj)
-      i = self.index(obj)
-      self.delete_at(i)
-      return
-    end
+  
+  def py_in?(element)
+    self.includes?(element)
+  end
+
+  def py_count(x)
+    self.count(x)
+  end
+  
+  def py_remove(obj)
+    i = self.index(obj)
+    self.delete_at(i)
+    return
+  end
+  
 end
+
+class Hash
+  def py_in?(element)
+    self.has_key?(element)
+  end
+end
+
+class IO
+  def py_read() : String
+    self.gets_to_end
+  end
+  # TODO: need py_read with byte-limit argument
+end
+
 
 module EnumerableEx # Enumerable
     def is_all?()
@@ -229,28 +305,37 @@ module EnumerableEx # Enumerable
 end
 
 
-module PyLib
-  # >>> Pylib.range(start, stop)
-  # >>> Pylib.range(start, stop, step)
-  #
-  # Creating something that works similarly to Python's
-  # range(a,b) and range(a,b,c) operator and returns an Enumerator
-  #
-  # Note that it doesnt work for `range(x)`, but you can implement with
-  # Crystal's `x.times`
+class PyRange
   
-  def self.range(start, stop, step=1)
-    curval = start
-    Iterator.new() do |y|
-      while step > 0 ? (curval < stop) : (curval > stop)
-        y << curval
-        curval += step
-      end
+  include Iterator(Int32)
+  
+  def initialize(@start : Int32, @stop : Int32, @step : Int32 = 1)
+    raise ArgumentError.new("Step cannot be zero") if @step.zero?
+    @curval = @start
+  end
+  
+  def next
+    value = @curval
+    if ( @step > 0 && (value < @stop )) ||
+       ( @step < 0 && (value > @stop ))
+      @curval += @step # nextval
+      return value
+    else
+      stop
     end
+  end
+
+  # Two/three argument form
+  def self.range(start : Int32, stop : Int32, step : Int32 = 1)
+    self.new(start, stop, step)
+  end
+
+  # One-argument form (stop-value)
+  def self.range(stop : Int32)
+    self.new(0, stop, 1)
   end
   
 end
-
 
 module PyOs
 

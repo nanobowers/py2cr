@@ -1,3 +1,6 @@
+# Per PEP-237, the %u is no longer supported
+# so this test will go on the unsupported list.
+# https://www.python.org/dev/peps/pep-0237/
 
 a = 1.123456
 b = 10

@@ -1,7 +1,7 @@
 
 class MyException(Exception):
 
-    def __init__(self,msg):
+    def __init__(self, msg : str):
         self.msg = msg
 
     def message(self):
@@ -9,7 +9,7 @@ class MyException(Exception):
 
 class MyOtherException(Exception):
 
-    def __init__(self,msg):
+    def __init__(self,msg : str):
         self.msg = msg
 
     def message(self):

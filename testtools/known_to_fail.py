@@ -30,13 +30,14 @@ KNOWN_TO_FAIL = [
     "tests/modules/module_name.py",
     "tests/modules/rng.py",
 
-    "tests/strings/other_strings.py",    # not support
-    "tests/strings/replace2.py",         # not support 3rd argument.
-    "tests/strings/string_format_efg.py",
-    "tests/strings/string_format_o.py", # not support
-    "tests/strings/string_format_x.py", # not support
+    "tests/strings/other_strings.py",    # not support byte-strings
+    #"tests/strings/replace2.py",         # not support 3rd argument.
 
-    ##"tests/numpy/arg_max_min.py",       # Not Compatible with axis case
+    "tests/strings/string_format_efg.py", # crystal doesnt support %F
+    "tests/strings/string_format_o.py",   # not support, diffs
+    "tests/strings/string_format_u.py",   # unsupported in python per PEP-237
+    "tests/strings/string_format_x.py",  # not support, diffs
+
 
     # No numpy or unittest cases work.
     
@@ -44,7 +45,7 @@ KNOWN_TO_FAIL = [
     "tests/numpy/all.py",
     "tests/numpy/any.py",
     "tests/numpy/arange.py",
-    "tests/numpy/arg_max_min.py",
+    "tests/numpy/arg_max_min.py", # Not Compatible with axis case
     "tests/numpy/array2string.py",
     "tests/numpy/asarray.py",
     "tests/numpy/ellipsis.py",

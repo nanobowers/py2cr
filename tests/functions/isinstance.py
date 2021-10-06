@@ -1,12 +1,12 @@
 
 class Spam(object):
 
-    def __init__(self,value):
+    def __init__(self, value : int):
         self.value = value
 
 class Eggs(object):
 
-    def __init__(self,value):
+    def __init__(self,value : int):
         self.value = value
 
 s = Spam(1)

@@ -1,3 +1,4 @@
+
 #
 #  Usage
 # --------
@@ -54,12 +55,12 @@ six:
   attribute_map:
     PY2: 'false'
     PY3: 'true'
-    integer_types: '[Integer]'
+    integer_types: '[Int32]'
   range_map:
     moves.range: ''
 
 functools:
-  id:
+  dict_map: {}
 
 collections:
   id:
