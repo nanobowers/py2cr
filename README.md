@@ -4,8 +4,6 @@ A code translator using AST from Python to Crystal. This is basically a
 NodeVisitor with Crystal output. See ast documentation
 (<https://docs.python.org/3/library/ast.html>) for more information.
 
-[[_TOC_]]
-
 ## Status
 
 Currently about 60% of tests are passing.  See more information below.
