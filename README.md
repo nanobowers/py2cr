@@ -4,6 +4,13 @@ A code translator using AST from Python to Crystal. This is basically a
 NodeVisitor with Crystal output. See ast documentation
 (<https://docs.python.org/3/library/ast.html>) for more information.
 
+[[_TOC_]]
+
+## Status
+
+Currently about 60% of tests are passing.  See more information below.
+
+
 ## Installation
 
 Execute the following:
@@ -36,7 +43,7 @@ pip install numpy
 
 ### Crystal
 
-* currently none *
+*currently there are no external dependencies*
 
 ## Methodology
 
@@ -50,11 +57,14 @@ syntax output, this tool either:
 
 Generally, `py2cr.py somefile.py > somefile.cr`
 
-There is a Crystal shim/wrapper library in `lib/py2cr` that is also referenced in the generated script.  You may need to copy that as needed, though eventually it may be appropriate to convert it to a shard if that is more appropriate.
+There is a Crystal shim/wrapper library in `src/py2cr` (and linked into `lib/py2cr`) that is also referenced in the generated script.  You may need to copy that as needed, though eventually it may be appropriate to convert it to a shard if that is more appropriate.
 
-*TODO: need better explanation of this...*
+## Example
+
+*TODO*
 
 ## Tests
+
 ```
 $ ./run_tests.py
 ```
@@ -99,7 +109,9 @@ argument_list: [str, ... str]  # list of strings as extra args for argv
 
 ## Typing
 
-Some amount of typing support in Python is translated to Crystal.  There is still more work to do regarding initializing empty data-types on the Crystal side where the compiler cannot infer the type from a bare `[]` or `{}`
+Some amount of typing support in Python is translated to Crystal.  Completely untyped Python code in many cases will not be translatable to compilable Crystal.   Rudimentary for python `Optional` and `Union` should convert appropriately to Crystal typing.
+
+Some inference of bare list/dict types can now convert to `[] of X` and `{} of X`, however `set` and `tuple` may not work properly.
 
 ## Status
 
@@ -107,6 +119,14 @@ This is incomplete and many of the tests brought forward from py2rb do not pass.
 
 To some extent, it will always be incomplete.  The goal is to cover common cases and reduce the additional work to minimum-viable-program.
 
+## Limitations
+
++ Many Python run-time exceptions are not translatable into Crystal as these issues manifest in Crystal as compile-time errors.
++ A significant portion of python code is untyped and may not translate properly in places where Crystal demands type information.
+    + e.g. Crystal Lambda function parameters require typing and this is very uncommon in Python, though may be possible with `Callable[]` on the python side.
++ Python importing is significantly different than Crystal and thus may not ever map well.
++ Numpy and Unittest which are common in Python don't have equivalents in Crystal.  With some significant additional work, converting tests into `Spec` format may be possible via https://github.com/jaredbeck/minitest_to_rspec as a guide
+    
 ## To-do
 
 + [ ] Remove python2/six dependencies to reduce clutter. Py2 has been end-of-lifed for a while now.
