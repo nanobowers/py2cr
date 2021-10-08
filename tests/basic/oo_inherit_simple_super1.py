@@ -1,20 +1,21 @@
+from typing import List
 
-class bar(object):
+class Bar(object):
 
-    def __init__(self,name):
+    def __init__(self,name : str):
         self.name = name
 
     def setname(self,name):
         self.name = name
 
-class foo(bar):
+class Foo(Bar):
     
-    registered = []
+    registered : List[int] = []
 
-    def __init__(self,val,name):
+    def __init__(self,val : int ,name : str):
         self.fval = val
         self.register(self)
-        bar.__init__(self,name)
+        Bar.__init__(self,name)
 
     def inc(self):
         self.fval += 1
@@ -31,17 +32,17 @@ class foo(bar):
 
     @staticmethod
     def register(f):
-        foo.registered.append(f)
+        Foo.registered.append(f)
 
     @staticmethod
     def printregistered():
-        for r in foo.registered:
+        for r in Foo.registered:
             print(r.msg())
 
-a = foo(10,'a')
+a = Foo(10,'a')
 a.setname('aaa')
-b = foo(20,'b')
-c = foo(30,'c')
+b = Foo(20,'b')
+c = Foo(30,'c')
 
 a.inc()
 a.inc()
@@ -53,4 +54,4 @@ print(c.msg(2,3,4))
 
 print("---")
 
-foo.printregistered()
+Foo.printregistered()

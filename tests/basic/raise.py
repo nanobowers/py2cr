@@ -1,12 +1,11 @@
 
 
-a = "hello"
+a = [1, 2]
 
 try:
     try:
         print("Trying illegal access")
-        x = "abc"
-        x.abc()
+        z = a[5]
     except:
         print("Exception raised, re-raising")
         raise

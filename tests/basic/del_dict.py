@@ -1,5 +1,6 @@
+from typing import Dict
 
-mydict = {}
+mydict : Dict[str,str] = {}
 
 mydict["abc"] = "def"
 mydict["def"] = "abc"

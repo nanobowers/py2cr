@@ -2,7 +2,7 @@
 
 class baseklass(object):
 
-    def __init__(self,bval):
+    def __init__(self,bval : str):
         self.bval = bval
 
     def describe(self,arg):
@@ -16,7 +16,7 @@ class baseklass(object):
 
 class klass(baseklass):
     
-    def __init__(self,val,bval):
+    def __init__(self,val : str,bval : str):
         baseklass.__init__(self,bval)
         self.val = val
 

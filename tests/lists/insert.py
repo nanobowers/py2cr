@@ -1,4 +1,7 @@
-a = []
+from typing import List
+
+a : List[int] = []
+
 a.insert(0, 1)
 print(a)
 a.insert(0, 2)

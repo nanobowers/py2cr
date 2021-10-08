@@ -19,6 +19,35 @@ class CrystalTypes:
     def __init__(self, node):
         self.node = node
 
+
+    def unwrap_list(self):
+        node = self.node
+        # expect node to be something to unwrap
+        if not isinstance(node, ast.Subscript):
+            raise Exception(f"Expecting a ast.Subscript to unwrap, got {type(node)}")
+        # check that subscript value
+        subscript_name = str(node.value.id)
+        if subscript_name.lower() != "list":
+            raise Exception(f"Expecting ast.Subscript value to be a list but got {subscript_name}")
+        return self.visit(node.slice.value)
+        
+    def unwrap_dict(self):
+        node = self.node
+        # expect node to be something to unwrap
+        if not isinstance(node, ast.Subscript):
+            raise Exception(f"Expecting a ast.Subscript to unwrap, got {type(node)}")
+        # check that subscript value
+        subscript_name = str(node.value.id)
+        if subscript_name.lower() != "dict":
+            raise Exception(f"Expecting ast.Subscript value to be a dict but got {subscript_name}")
+        nsv = node.slice.value
+        if not isinstance(nsv, ast.Tuple):
+            raise
+
+        return (self.visit(nsv.elts[0]), self.visit(nsv.elts[1]))
+
+
+        
     def visit(self, node = None):
         if node is None:
             node = self.node

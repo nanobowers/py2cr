@@ -1,5 +1,6 @@
+from typing import Dict
 
-foo = dict()
+foo : Dict[str,str] = dict()
 foo['a'] = 'b'
 foo['c'] = 'd'
 

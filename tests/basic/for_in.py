@@ -1,3 +1,5 @@
+from typing import List, Dict
+
 # iterating over a list
 print('-- list --')
 a = [1,2,3,4,5]
@@ -6,16 +8,16 @@ for x in a:
 
 # iterating over a tuple
 print('-- tuple else case --')
-a = ('cats','dogs','squirrels')
-for x in a:
-    print(x)
+t = ('cats','dogs','squirrels')
+for x1 in t:
+    print(x1)
 else:
     print('ok')
 
 print('-- tuple else break case --')
-for x in a:
-    print(x)
-    if x == 'squirrels':
+for x2 in t:
+    print(x2)
+    if x2 == 'squirrels':
         break
 else:
     print('ok')
@@ -25,27 +27,27 @@ else:
 # explictly before comparing output
 
 print('-- dict keys --')
-a = {'a':1,'b':2,'c':3 }
+dct = {'a':1,'b':2,'c':3 }
 
-keys = []
-for x in a.keys():
-    keys.append(x)
+keys : List[str] = []
+for x3 in dct.keys():
+    keys.append(x3)
 
 keys.sort()
 for k in keys:
     print(k)
 
 print('-- dict values --')
-values = list()
-for v in a.values():
+values : List[int] = list()
+for v in dct.values():
     values.append(v)
 
 values.sort()
 for v in values:
     print(v)
 
-items = dict()
-for k, v in a.items():
+items : Dict[str,int] = dict()
+for k, v in dct.items():
     items[k] = v
 
 print('-- dict item --')
@@ -55,7 +57,7 @@ print(items['c'])
 
 # iterating over a string
 print('-- string --')
-a = 'defabc'
-for x in a:
-    print(x)
+aaa = 'defabc'
+for x4 in aaa:
+    print(x4)
 

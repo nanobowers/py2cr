@@ -1,11 +1,9 @@
-"""\
-The special runners that look for progress in a test and have nicer output than
-the original."""
+"""
+The special runners that look for progress in a test 
+and have nicer output than the original.
+"""
 import sys
-if sys.version_info < (2, 7):
-    import unittest2 as unittest
-else:
-    import unittest
+import unittest
 
 class Py2RbTestResult(unittest.TestResult):
     """Test result class, handling all the results reported by the tests"""
@@ -55,8 +53,11 @@ class Py2RbTestResult(unittest.TestResult):
         self.__state = "known to [FAIL]"
 
     def addFailure(self, test, err):
-        """ Somewhat of a hack here to check the error-message to see if we
-        failed because of a difference in the output or we failed to compile. """
+        """ 
+        Somewhat of a hack here to check the error-message to see if we
+        failed because of a difference in the output or we failed to 
+        compile. 
+        """
         super(Py2RbTestResult, self).addFailure(test, err)
         message = err[1].args[0]
         if message.endswith(": diff"):

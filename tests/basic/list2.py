@@ -1,5 +1,5 @@
 def list1(n):
-    a = []
+    a : List[int] = []
     a.append(1)
     a.append(2)
     a.append(3)

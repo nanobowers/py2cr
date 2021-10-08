@@ -87,7 +87,11 @@ def py_print(*args)
   # $, = " "   # array field separator
   # $\ = "\n"  # output record separator
   args.each_with_index do |arg, idx|
-    print arg
+    if arg.is_a?(Iterator)
+      print arg.to_a
+    else
+      print arg
+    end
     print " " unless idx == args.size - 1
   end
   print "\n"
@@ -275,8 +279,8 @@ class IO
   # TODO: need py_read with byte-limit argument
 end
 
-module EnumerableEx # Enumerable
-  def is_all?
+module Enumerable
+  def py_all?
     result = true
     self.each do |a|
       result = false if a.nil? || a == false || a == 0 || a == ""
@@ -285,7 +289,7 @@ module EnumerableEx # Enumerable
     return result
   end
 
-  def is_any?
+  def py_any?
     result = false
     self.each do |a|
       result = true unless a.nil? || a == false || a == 0 || a == ""

@@ -92,29 +92,50 @@ class RB(object):
         '__file__' : '__FILE__',
     }
 
+    #
+    # Many of Python's runtime errors do not have any equivalent
+    # in crystal, as Crystal moves the error from runtime to compile-time
+    # Hence, many of these python exceptions are commented out.
+    #
     exception_map = {
+        #'NotImplementedError' : 'NotImplementedError',
+        #'StopIteration'       : 'StopIteration',
+        #'TypeError'           : 'ArgumentError',
+        #'ValueError'          : 'ArgumentError',
         'AssertionError'      : 'RuntimeError', # assert => raise
-        'AttributeError'      : 'NoMethodError',
-        'EOFError'            : 'EOFError',
+        #'AttributeError'      : 'NoMethodError',
+        'Exception'           : 'Exception',
+        #'EOFError'            : 'EOFError',
+        #'FloatingPointError'  : '???',
+        #'GeneratorExit'       : '???',
+        #'ImportError'         : 'LoadError',
+        'IndexError'          : 'IndexError', # same
+        #'IndentationError'    : '???',  # no crystal equiv
+        'KeyError'            : 'KeyError', # same
         'KeyboardInterrupt'   : 'Interrupt',
-        'KeyError'            : 'KeyError',
+        'LookupError'         : '???',
         'MemoryError'         : 'NoMemoryError',
-        'NameError'           : 'NameError',
-        'ImportError'         : 'LoadError',
-        'IndexError'          : 'IndexError',
         'ModuleNotFoundError' : 'LoadError',
         'NameError'           : 'NameError',
-        #'NotImplementedError' : 'NotImplementedError',
+        'NotImplementedError' : 'NotImplementedError',
         'OSError'             : 'IOError',
+        'OverflowError'       : 'OverflowError',
         'RecursionError'      : 'SystemStackError',
+        'ReferenceError'      : 'ReferenceError',
         'RuntimeError'        : 'RuntimeError',
-        #'StopIteration'       : 'StopIteration',
-        'SyntaxError'         : 'SyntaxError',
-        'SystemError'         : 'ScriptError',
-        'SystemExit'          : 'SystemExit',
-        'TypeError'           : 'ArgumentError',
-        'ValueError'          : 'ArgumentError',
-        'ZeroDivisionError'   : 'ZeroDivisionError',
+        #'StopIteration'       : '???',
+        #'SyntaxError'         : '???',  # fail at compile
+        #'SystemError'         : 'ScriptError',
+        #'SystemExit'          : 'SystemExit',
+        #'TabError'            : '???',  # no equiv in crystal
+        #'TypeError'           : '???',  # fail at compile
+        #'UnboundLocalError'   : '???',  # fail at compile
+        #'UnicodeEncodeError'  : '???',  # fail at compile
+        #'UnicodeDecodeError'  : '???',  # fail at compile
+        #'UnicodeTranslateError' : '???',  # fail at compile
+        #'ValueError'          : '???',  # fail at compile
+        'ZeroDivisionError'   : 'DivisionByZeroError',
+        
     }
 
     # isinstance(foo, String) => foo.is_a?(String)
@@ -125,8 +146,8 @@ class RB(object):
         #'getattr'    : 'send',
         #'getattr'    : 'method',
         'getattr'    : 'getattr',
-        'all' : 'is_all?',
-        'any' : 'is_any?',
+        'all' : 'py_all?',
+        'any' : 'py_any?',
         'remove': 'py_remove',
         'getattr': 'py_getattr',
     }
@@ -377,7 +398,7 @@ class RB(object):
     def get_comparison_op(self, node):
         return self.comparison_op[node.__class__.__name__]
 
-    def visit(self, node, scope=None):
+    def visit(self, node, scope=None, crytype=None):
 
         if self._mode == 2:
             node_name = self.name(node)
@@ -395,9 +416,12 @@ class RB(object):
                     self.set_result(1)
                     sys.stderr.write("Warning : syntax not supported (%s line:%d col:%d\n" % (node, node.lineno, node.col_offset))
                 return ''
-
+        
         if hasattr(visitor, 'statement'):
             return visitor(node, scope)
+        elif self.name(node) in ["Dict", "List", "Call"]:
+            # Do Call for handling empty dict() and list()
+            return visitor(node, crytype=crytype)
         else:
             return visitor(node)
 
@@ -561,7 +585,7 @@ class RB(object):
         """ keyword only arguments """
         for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
             arg_id = arg.arg
-            rb_args.append("%s: %s" % (arg_id, self.visit(default)))
+            rb_args.append("%s = %s" % (arg_id, self.visit(default)))
             rb_args_default.append(arg_id)
 
         """ double star arguments """
@@ -966,10 +990,10 @@ class RB(object):
         # Type annotations in python.
         # TODO figure out how to do them in Crystal
         target = self.visit(node.target)
-        anno = types.CrystalTypes(node.annotation).visit()
-        #anno =  self.visit(node.annotation)
         if node.value:
-            value = self.visit(node.value)
+            crytype = types.CrystalTypes(node.annotation)
+            anno = crytype.visit()
+            value = self.visit(node.value, crytype=crytype)
             self.write("%s : %s = %s" % (target, anno, value))
 
     @scope
@@ -1134,7 +1158,6 @@ class RB(object):
     @scope
     def visit_ExceptHandler(self, node):
         """
-        <Python 2> ExceptHandler(expr? type, expr? name, stmt* body)
         <Python 3> ExceptHandler(expr? type, identifier? name, stmt* body)
         """
         """ <Python> try:
@@ -1154,10 +1177,7 @@ class RB(object):
         elif node.name is None:
             self.write("rescue %s" % self.visit(node.type))
         else:
-            if six.PY2:
-                self.write("rescue %s : %s" % (node.name.id, self.visit(node.type)))
-            else:
-                self.write("rescue %s : %s" % (node.name, self.visit(node.type)))
+            self.write("rescue %s : %s" % (node.name, self.visit(node.type)))
         self.indent()
         for stmt in node.body:
             self.visit(stmt)
@@ -1184,33 +1204,33 @@ class RB(object):
             self.dedent()
         self.write("end")
 
-    # Python 2
-    @scope
-    def visit_TryExcept(self, node):
-        """
-        TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
-        """
-        self.indent()
-        for stmt in node.body:
-            self.visit(stmt)
-        self.dedent()
-        for handle in node.handlers:
-            self.visit(handle)
-
-    # Python 2
-    @scope
-    def visit_TryFinally(self, node):
-        """
-        TryFinally(stmt* body, stmt* finalbody)
-        """
-        self.write("begin")
-        self.visit(node.body[0]) # TryExcept
-        self.write("ensure")
-        self.indent()
-        for stmt in node.finalbody:
-            self.visit(stmt)
-        self.dedent()
-        self.write("end")
+##    # Python 2
+##    @scope
+##    def visit_TryExcept(self, node):
+##        """
+##        TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
+##        """
+##        self.indent()
+##        for stmt in node.body:
+##            self.visit(stmt)
+##        self.dedent()
+##        for handle in node.handlers:
+##            self.visit(handle)
+##
+##    # Python 2
+##    @scope
+##    def visit_TryFinally(self, node):
+##        """
+##        TryFinally(stmt* body, stmt* finalbody)
+##        """
+##        self.write("begin")
+##        self.visit(node.body[0]) # TryExcept
+##        self.write("ensure")
+##        self.indent()
+##        for stmt in node.finalbody:
+##            self.visit(stmt)
+##        self.dedent()
+##        self.write("end")
 
     def visit_Assert(self, node):
         """
@@ -1599,7 +1619,9 @@ class RB(object):
             t = self.visit(node.generators[0].target)
         else:
             # ast.Tuple
-            self._tuple_type = ''
+            # Goofy, but we need to wrap the returned values with ()
+            # so that |a,b,c| ==> |(a,b,c)|
+            self._tuple_type = '()'
             t = self.visit(node.generators[0].target)
             self._tuple_type = '[]'
         if len(node.generators[0].ifs) == 0:
@@ -1666,9 +1688,10 @@ class RB(object):
         """
         """ [Lambda Definition] : 
         <Python>    lambda x,y :x*y
-        <Crystal>   -> {|x,y| x*y}
+        <Crystal>   ->(x,y) {x*y}
         <Python>    lambda *x: print(x)
-        <Crystal>   -> {|*x| print(x)}
+        <Crystal>   ->(*x) { print(x)}
+
         <Python>    def foo(x, y):
                         x(y)
                     foo(lambda x: print(a), a)
@@ -1677,7 +1700,7 @@ class RB(object):
                     end
                     foo(-> {|x| print(a)}, a)
         """
-        return "-> {|%s| %s}" % (self.visit(node.args), self.visit(node.body))
+        return "->(%s) { %s }" % (self.visit(node.args), self.visit(node.body))
 
     def visit_BoolOp(self, node):
         return (" %s " % self.get_bool_op(node)).join([ "%s" % self.ope_filter(self.visit(val)) for val in node.values ])
@@ -2096,7 +2119,7 @@ class RB(object):
                 print("get_methods_map without bracket main_func : %s : m_args %s" % (main_func, m_args))
             return "%s%s" % (main_func, ', '.join(m_args))
 
-    def visit_Call(self, node):
+    def visit_Call(self, node, crytype = None):
         """
         Call(expr func, expr* args, keyword* keywords)
         """
@@ -2252,7 +2275,7 @@ class RB(object):
                 del rb_args[0]
                 self._func_args_len = len(rb_args)
 
-        """ Use keywoard argments in function defined case."""
+        """ Use keyword argments in function defined case."""
         if func_arg != None:
             if ((len(rb_args) != 0 ) and (rb_args[0] == 'self')):
                args = rb_args[1:]
@@ -2281,11 +2304,11 @@ class RB(object):
             <Crystal>   foo(1, fuga:2)
             """
             for kw in node.keywords:
-                #RB# rb_args.append("%s: %s" % (kw.arg, self.visit(kw.value)))
-                rb_args.append("%s = %s" % (kw.arg, self.visit(kw.value)))
+                rb_args.append("%s: %s" % (kw.arg, self.visit(kw.value)))
+                #rb_args.append("%s = %s" % (kw.arg, self.visit(kw.value)))
                 self._conv = False
-                #RB# rb_args_base.append("%s: %s" % (kw.arg, self.visit(kw.value)))
-                rb_args_base.append("%s = %s" % (kw.arg, self.visit(kw.value)))
+                rb_args_base.append("%s: %s" % (kw.arg, self.visit(kw.value)))
+                #rb_args_base.append("%s = %s" % (kw.arg, self.visit(kw.value)))
                 self._conv = True
         if len(rb_args) == 0:
             rb_args_s = ''
@@ -2325,7 +2348,7 @@ class RB(object):
             return self.get_methods_map(self.methods_map[func], rb_args_base, ins)
         elif func in self.order_methods_with_bracket.keys():
             """ [Function convert to Method]
-            <Python> os.path.dirnam(name)
+            <Python> os.path.dirname(name)
             <Crystal>   File.dirname(name)
             """
             return "%s(%s)" % (self.order_methods_with_bracket[func], ','.join(rb_args))
@@ -2371,7 +2394,7 @@ class RB(object):
             <Crystal>   3.times.to_a
             """
             if len(node.args) == 0:
-                return "[]"
+                return self.empty_list(node, crytype)
             elif (len(node.args) == 1) and isinstance(node.args[0], ast.Str):
                 return "%s.split('')" % (rb_args_s)
             else:
@@ -2382,7 +2405,7 @@ class RB(object):
             <Crystal>   {'foo' => 1, 'bar' => 2}
             """
             if len(node.args) == 0:
-                return "{}"
+                return self.empty_hash(node, crytype)
             elif len(node.args) == 1:
                 if isinstance(node.args[0], ast.List):
                     rb_args = []
@@ -2465,8 +2488,8 @@ class RB(object):
                     self.write("raise %s" % self.visit(node.exc))
                 else:
                     """ [Exception] :
-                    <Python> raise ValueError('foo.')
-                    <Crystal>   raise TypeError, "foo."
+                    <Python>    raise ValueError('foo.')
+                    <Crystal>   raise TypeError.new("foo.")
                     """
                     self.write("raise %s.new(%s)" % (self.visit(node.exc.func), self.visit(node.exc.args[0])))
 
@@ -2680,7 +2703,9 @@ class RB(object):
         Tuple(expr* elts, expr_context ctx)
         """
         els = [self.visit(e) for e in node.elts]
-        if self._tuple_type == '()':
+        if not els:
+            return "Tuple.new"
+        elif self._tuple_type == '()':
             return "(%s)" % (", ".join(els))
         elif self._tuple_type == '[]':
             return "[%s]" % (", ".join(els))
@@ -2692,7 +2717,7 @@ class RB(object):
             self.set_result(2)
             raise CrystalError("tuples in argument list Error")
 
-    def visit_Dict(self, node):
+    def visit_Dict(self, node, crytype = None):
         """
         Dict(expr* keys, expr* values)
         """
@@ -2705,22 +2730,22 @@ class RB(object):
                     els.append("%s: %s" % (self.visit(k), self.visit(v)))
                 else: # ast.Str, ast.Num
                     els.append("%s => %s" % (self.visit(k), self.visit(v)))
-        return "{%s}" % (", ".join(els))
 
-    def visit_List(self, node):
+        if els:
+            return "{%s}" % (", ".join(els))
+        else:
+            return self.empty_hash(node, crytype)
+
+
+    def visit_List(self, node, crytype = None):
         """
 	List(expr* elts, expr_context ctx)
         """
-        #els = []
-        #for e in node.elts:
-        #    if isinstance(e, (ast.Tuple, ast.List)):
-        #        els.append("[%s]" % self.visit(e))
-        #    else:
-        #        els.append(self.visit(e))
-        # ast.Tuple, ast.List, ast.*
         els = [self.visit(e) for e in node.elts]
-        return "[%s]" % (", ".join(els))
-        #return ", ".join(els)
+        if els:
+            return "[%s]" % (", ".join(els))
+        else:
+            return self.empty_list(node, crytype)
 
     def visit_Set(self, node):
         els = [self.visit(e) for e in node.elts]
@@ -2816,6 +2841,33 @@ class RB(object):
                 self.set_result(1)
                 sys.stderr.write("Warning : yield is not supported : \n")
             return "yield"
+
+    def empty_list(self, node, crytype = None):
+        """ 
+        Return Crystal representation of an empty Array
+        Crystal needs the annotation. If we dont have one on the
+        Python side, then warn.
+        """
+        if crytype:
+            anno = crytype.unwrap_list()
+            return "[] of %s" % (anno)
+        else:
+            sys.stderr.write("Warning : empty-list infer issue (%s line:%d col:%d\n" % (node, node.lineno, node.col_offset))
+            return "[]"
+
+    def empty_hash(self, node, crytype = None):
+        """ 
+        Return Crystal representation of an empty Hash 
+        Crystal needs the annotation. If we dont have one on the
+        Python side, then warn.
+        """
+        if crytype:
+            annokey, annoval = crytype.unwrap_dict()
+            return "{} of %s => %s" % (annokey, annoval)
+        else:
+            sys.stderr.write("Warning : empty-dict infer issue (%s line:%d col:%d\n" % (node, node.lineno, node.col_offset))
+            return "{}"
+        
 
 def convert_py2rb(s, dir_path, path='', base_path_count=0, modules=[], mod_paths={}, no_stop=False, verbose=False):
     """
