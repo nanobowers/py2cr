@@ -20,3 +20,7 @@ tests/*/*/*.err
 tests/*/*/*/*.rb
 tests/*/*/*/*.cr
 tests/*/*/*/*.err
+
+lib/*
+lib/.shards.info
+shard.lock
