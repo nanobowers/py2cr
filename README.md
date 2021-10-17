@@ -1,13 +1,12 @@
 # py2cr.py
 
 A code translator using AST from Python to Crystal. This is basically a
-NodeVisitor with Crystal output. See ast documentation
+NodeVisitor with Crystal output. See AST documentation
 (<https://docs.python.org/3/library/ast.html>) for more information.
 
 ## Status
 
-Currently about 60% of tests are passing.  See more information below.
-
+Currently more than 80% of the relevant tests are passing.  See more information below.
 
 ## Installation
 
@@ -22,7 +21,7 @@ git clone git://github.com/nanobowers/py2cr.git
 
 ## Versions
 
-- Python 3.5 .. 3.9
+- Python 3.6 .. 3.9
 - Crystal 1.1+
 
 ## Dependencies
