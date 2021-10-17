@@ -1,11 +1,23 @@
+import sys
 import ast
+
+# apparently something changed in the AST between
+# python 3.8 and 3.9 here.
+def node_slice_value(node):
+    pymajor = sys.version_info.major
+    pyminor = sys.version_info.minor
+    if pymajor >= 3 and pyminor >=9:
+        return node.slice
+    else:
+        return node.slice.value
 
 class CrystalTypes:
 
     name_map = {
+        'bool'  : 'Bool',
         'True'  : 'true',  # python 2.x
         'False' : 'false', # python 2.x
-        'None'  : 'nil',   # python 2.x
+        'None'  : 'Nil',   # python 2.x
         'str'   : 'String',
         'int'   : 'Int32',
         'float' : 'Float64',
@@ -19,7 +31,6 @@ class CrystalTypes:
     def __init__(self, node):
         self.node = node
 
-
     def unwrap_list(self):
         node = self.node
         # expect node to be something to unwrap
@@ -29,7 +40,18 @@ class CrystalTypes:
         subscript_name = str(node.value.id)
         if subscript_name.lower() != "list":
             raise Exception(f"Expecting ast.Subscript value to be a list but got {subscript_name}")
-        return self.visit(node.slice.value)
+        return self.visit(node.slice)
+
+    def unwrap_tuple(self):
+        node = self.node
+        # expect node to be something to unwrap
+        if not isinstance(node, ast.Subscript):
+            raise Exception(f"Expecting a ast.Subscript to unwrap, got {type(node)}")
+        # check that subscript value
+        subscript_name = str(node.value.id)
+        if subscript_name.lower() != "tuple":
+            raise Exception(f"Expecting ast.Subscript value to be a tuple but got {subscript_name}")
+        return self.visit(node.slice)
         
     def unwrap_dict(self):
         node = self.node
@@ -40,7 +62,9 @@ class CrystalTypes:
         subscript_name = str(node.value.id)
         if subscript_name.lower() != "dict":
             raise Exception(f"Expecting ast.Subscript value to be a dict but got {subscript_name}")
-        nsv = node.slice.value
+
+
+        nsv = node_slice_value(node)
         if not isinstance(nsv, ast.Tuple):
             raise
 
@@ -81,11 +105,26 @@ class CrystalTypes:
         Subscripts for Crystal Annotations use (), not []
         """
         name = self.visit(node.value)
+
+        node_slice = node_slice_value(node)
         if name == "Union":
-            pipeargs = [self.visit(e) for e in node.slice.value.elts]
+            pipeargs = [self.visit(e) for e in node_slice.elts]
             pipetypes = " | ".join(pipeargs)
             return "( " + pipetypes + " )"
         elif name == "Optional":
-            return self.visit(node.slice.value) + "?"
+            return self.visit(node_slice) + "?"
         else:
             return "%s(%s)" % (self.visit(node.value), self.visit(node.slice))
+        
+    @classmethod
+    def constant(cls, node, nilable=True):
+        const_typename = node.value.__class__.__name__
+        if const_typename in cls.name_map:
+            crystal_typename = cls.name_map[const_typename]
+            if nilable:
+                return crystal_typename + "?"
+            else:
+                return crystal_typename
+        else:
+            return "_"
+        

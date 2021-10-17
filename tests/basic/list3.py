@@ -1,5 +1,6 @@
+from typing import List
 
-x = list()
+x : List[str] = list()
 x.append('foo')
 print(len(x))
 print(x[0])

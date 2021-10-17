@@ -1,4 +1,7 @@
-# require "pathname"
+
+# To match a python `assert` error
+class AssertionError < Exception
+end
 
 class Method
   # Monkeypath Method#to_s to provide a consistent output for multiple
@@ -35,6 +38,11 @@ end
 # Foo.call() or Foo.() is nothing => Foo.new() call.
 #
 class Class
+  
+  def py_call(*args,**kwargs)
+    self.new(*args, **kwargs)
+  end
+  
   def method_missing(method, *args)
     if method == :call
       self.new(*args)
@@ -49,6 +57,20 @@ struct Set
     self.delete(x)
     return
   end
+end
+
+class Array(T)
+  def remove(val) : Void
+    idx = self.index(val)
+    unless idx.nil?
+      self.delete_at(idx)
+    end
+  end
+
+  # TODO: Add range-based slice assignment
+  #def []=(idxrange : Range(Int32, Int32), arrayval : Array(T))
+  #end
+  
 end
 
 module PythonMethodEx
@@ -69,7 +91,7 @@ end
 # Note that we allow nils to propagate from Crystal Enumerable#zip,
 # and then we have to filter out any cases with nils, then convert to an array.
 def py_zip(a, *otherargs)
-  return a.zip(*otherargs).select(&.all?).map(&.to_a)
+  return a.zip?(*otherargs).select(&.all?).map(&.to_a)
 end
 
 # Array python-zip with one arg.
@@ -266,6 +288,35 @@ class Array
   end
 end
 
+struct Tuple
+
+  def py_count(x)
+    self.count(x)
+  end
+
+  # Monkeypatch to_s to use parentheses when printing a Tuple
+  # so that tuples will print the same way as Python
+  def to_s(io : IO) : Nil
+    io << '('
+    join(io, ", ") { |item|
+      if item.responds_to?(:py_inspect)
+        item.py_inspect(io)
+      else
+        item.inspect(io)
+      end
+    }
+    io << ')'
+  end
+  
+end
+
+module ENV
+  # handles "key" in os.environ case
+  def self.py_in?(key : String) : Bool
+    self.has_key?(key)
+  end
+end
+    
 class Hash
   def py_in?(element)
     self.has_key?(element)
@@ -293,7 +344,7 @@ module Enumerable
     result = false
     self.each do |a|
       result = true unless a.nil? || a == false || a == 0 || a == ""
-      result = true unless a.responds_to?(:empty?) && a.empty?
+      result = a.py_any? if a.responds_to?(:each)
     end
     return result
   end

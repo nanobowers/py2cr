@@ -1,3 +1,8 @@
+from typing import List, Tuple
+
+class TriangulationError(Exception):
+    pass
+
 def abs(x):
     if x > 0:
         return x
@@ -15,7 +20,7 @@ def sqrt(x):
         residual = r**2 - x
     return r
 
-def is_on_the_left(c, a, b, pts_list):
+def is_on_the_left(c, a, b, pts_list) -> bool :
    ax, ay = pts_list[a]
    bx, by = pts_list[b]
    cx, cy = pts_list[c]
@@ -63,13 +68,13 @@ def find_third_point(a, b, pts_list, edges):
         raise TriangulationError("ERROR: Optimal point not found in find_third_point().")
     return pt_index
 
-def lies_inside(c, bdy_edges):
+def lies_inside(c, bdy_edges) -> bool:
    for edge in bdy_edges:
        a,b = edge
        if c == a or c == b: return False
    return True
 
-def is_boundary_edge(a, b, bdy_edges):
+def is_boundary_edge(a, b, bdy_edges) -> bool:
     """
     Checks whether edge (a, b) is in the list of boundary edges
     """
@@ -79,15 +84,15 @@ def is_boundary_edge(a, b, bdy_edges):
             return True
     return False
 
-def triangulate_af(pts_list, bdy_edges):
+def triangulate_af(pts_list, bdy_edges) -> List[Tuple[int,int,int]] :
     """
     Create a triangulation using the advancing front method.
     """
     # create empty list of elements
-    elems = []
+    elems : List[Tuple[int,int,int]] = []
     bdy_edges = bdy_edges[:]
     # main loop
-    while bdy_edges != []:
+    while len(bdy_edges) > 0:
         # take the last item from the list of bdy edges (and remove it)
         a,b = bdy_edges.pop()
         c = find_third_point(a, b, pts_list, bdy_edges)
@@ -102,10 +107,10 @@ def triangulate_af(pts_list, bdy_edges):
             bdy_edges.append((c,b))
     return elems
 
-def ccw(a, b, c):
+def ccw(a, b, c) -> bool :
     return (c[1]-a[1])*(b[0]-a[0]) > (b[1]-a[1])*(c[0]-a[0])
 
-def intersect(a, b, c, d):
+def intersect(a, b, c, d) -> bool :
     return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
 
 def two_edges_intersect(nodes, e1, e2):
@@ -134,7 +139,7 @@ def any_edges_intersect(nodes, edges):
                 return True
     return False
 
-def edge_intersects_edges(e1, nodes, edges):
+def edge_intersects_edges(e1, nodes, edges) -> bool :
     """
     Returns True if "e1" intersects any edge from "edges".
     """

@@ -1,6 +1,8 @@
+from typing import List
+
 class List(object):
 
-    def __init__(self, l=[]):
+    def __init__(self, l : List[int] = [] ):
         self._list = list(l)
 
     def append(self, x):

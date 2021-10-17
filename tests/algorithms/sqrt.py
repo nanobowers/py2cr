@@ -16,17 +16,7 @@ def sqrt(x):
     return r
 
 def p(x):
-    prec = 11
-    l = list(iter(str(x)))[:prec]
-    if not "." in l:
-        l.append(".")
-        l.append("0")
-    while len(l) < prec:
-        l.append("0")
-    s = ""
-    for c in l:
-        s += c
-    return s
+    return "%.10f" % x
 
 print((p(sqrt(1))))
 print((p(sqrt(2))))

@@ -1,5 +1,5 @@
-
-mylist = []
+from typing import List
+mylist : List[str] = []
 mylist.append('a')
 mylist.append('b')
 mylist.append('c')

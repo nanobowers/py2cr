@@ -7,8 +7,8 @@ print(tup[2])
 print(tup[3])
 print(tup[4])
 
-tup = tuple()
-print(len(tup))
+emptytup = tuple()
+print(len(emptytup))
 
 tup = tuple(('a','b',1,2,3))
 print(len(tup))

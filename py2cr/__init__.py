@@ -87,7 +87,7 @@ class RB(object):
         'int'   : 'Int32',
         'float' : 'Float64',
         'list'  : 'Array',
-        'tuple' : 'Array',
+        'tuple' : 'Tuple',
         'dict'  : 'Hash',
         '__file__' : '__FILE__',
     }
@@ -102,7 +102,7 @@ class RB(object):
         #'StopIteration'       : 'StopIteration',
         #'TypeError'           : 'ArgumentError',
         #'ValueError'          : 'ArgumentError',
-        'AssertionError'      : 'RuntimeError', # assert => raise
+        'AssertionError'      : 'AssertionError', # assert => raise
         #'AttributeError'      : 'NoMethodError',
         'Exception'           : 'Exception',
         #'EOFError'            : 'EOFError',
@@ -217,14 +217,9 @@ class RB(object):
         'join',
     ])
 
-    list_map = set([                 # Array
-        'list',
-        'tuple',
-    ])
-
-    dict_map = set([                 # Hash
-        'dict',
-    ])
+    list_map = set(['list']) # Array
+    tuple_map = set(['tuple']) # Tuple
+    dict_map = set(['dict']) # Hash
 
     iter_map = set([                 # Array
         'map',
@@ -325,7 +320,11 @@ class RB(object):
         self._rclass_name = None
 
         # This is use () case of the tuple that we are currently in:
-        self._tuple_type = '[]' # '()' : "(a, b)" , '[]' : "[a, b]", '=>': "%s => %s" (Hash), '': 'a, b'
+        #   '()'   :  "(a, b)"
+        #   '[]'   :  "[a, b]"
+        #   '=>'   :  "%s => %s" (Hash)
+        #   ''     :  'a, b'
+        self._tuple_type = '[]' 
         self._func_args_len = 0
         self._dict_format = False # True : Symbol ":", False : String "=>"
 
@@ -789,6 +788,8 @@ class RB(object):
                 for t in stmt.targets:
                     var = self.visit(t)
                     self.write("@@%s = %s" % (var, value))
+                    valuetype = types.CrystalTypes.constant(stmt.value)
+                    self.write("@%s : %s = %s" % (var, valuetype, "nil"))
                     self._class_variables.append(var)
             else:
                 self.visit(stmt)
@@ -1239,9 +1240,9 @@ class RB(object):
         test = self.visit(node.test)
 
         if node.msg is not None:
-            self.write("raise %s unless %s" % (self.visit(node.msg), test))
+            self.write("raise AssertionError.new(%s) unless %s" % (self.visit(node.msg), test))
         else:
-            self.write("raise unless %s" % test)
+            self.write("raise AssertionError.new unless %s" % test)
 
     def visit_Import(self, node):
         """
@@ -2123,6 +2124,7 @@ class RB(object):
         """
         Call(expr func, expr* args, keyword* keywords)
         """
+
         rb_args = [ self.visit(arg) for arg in node.args ]
         """ [method argument set Method Object] :
         <Python> def describe():
@@ -2320,7 +2322,7 @@ class RB(object):
             rb_args_s = ", ".join(rb_args)
 
         if isinstance(node.func, ast.Call):
-            return "%s.(%s)" % (func, rb_args_s)
+            return "%s.py_call(%s)" % (func, rb_args_s)
 
         if func in self.ignore.keys():
             """ [Function convert to Method]
@@ -2388,15 +2390,28 @@ class RB(object):
                     'step':self.ope_filter(rb_args[2])
                 }
                 return "PyRange.range(%(start)s, %(end)s, %(step)s)" % rangedict
+        elif func in self.tuple_map:
+            """ 
+            [list]
+            <Python> tuple(range(3))
+            <Crystal>   3.times.to_a
+            """
+            if len(node.args) == 0:
+                return "Tuple.new()"
+            elif (len(node.args) == 1) and isinstance(node.args[0], ast.Str):
+                return "%s.split(\"\")" % (rb_args_s)
+            else:
+                return "%s.to_a" % (rb_args_s)
         elif func in self.list_map:
-            """ [list]
+            """ 
+            [list]
             <Python> list(range(3))
             <Crystal>   3.times.to_a
             """
             if len(node.args) == 0:
                 return self.empty_list(node, crytype)
             elif (len(node.args) == 1) and isinstance(node.args[0], ast.Str):
-                return "%s.split('')" % (rb_args_s)
+                return "%s.split(\"\")" % (rb_args_s)
             else:
                 return "%s.to_a" % (rb_args_s)
         elif func in self.dict_map:
@@ -2459,7 +2474,7 @@ class RB(object):
 
         if (func in self._scope or func[0] == '@') and \
            func.find('.') == -1: # Proc call
-            return "%s.(%s)" % (func, rb_args_s)
+            return "%s.py_call(%s)" % (func, rb_args_s)
 
         if func[-1] == ')':
             return "%s" % (func)
@@ -2708,7 +2723,7 @@ class RB(object):
         elif self._tuple_type == '()':
             return "(%s)" % (", ".join(els))
         elif self._tuple_type == '[]':
-            return "[%s]" % (", ".join(els))
+            return "{%s}" % (", ".join(els))
         elif self._tuple_type == '=>':
             return "%s => %s" % (els[0], els[1])
         elif self._tuple_type == '':

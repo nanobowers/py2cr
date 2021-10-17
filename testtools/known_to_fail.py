@@ -6,7 +6,7 @@ KNOWN_TO_FAIL = [
     "tests/basic/valueerror.py",
     "tests/basic/del_global.py",
     "tests/basic/generator.py",
-    "tests/basic/default.py",    # Can't call local valiable in arguments.
+    "tests/basic/default.py",    # Can't call local variable in arguments.
     "tests/basic/for_in2.py",    # Can't support dict (not use items()/keys()/values()) case.
     "tests/basic/hasattr2.py",
     "tests/basic/oo_super.py",   # Multiple inheritance can not be supported
@@ -22,22 +22,47 @@ KNOWN_TO_FAIL = [
     "tests/decorator/class.py",
     "tests/decorator/decorator.py",
 
+    # lambdas do not work currently because they must be typed in crystal.
+    # typing of lambdas is very uncommon in python-land.
+    # Might be supportable with typeannotation of Callable in the future, but
+    # doubtful would have any practical use.
+    "tests/basic/lambda.py",
+    "tests/basic/lambda2.py",
+    "tests/basic/lambda3.py",
+    "tests/basic/lambda_map.py",
+
+    "tests/basic/del_attr.py", # cannot delete an instance variable in crystal, afaik.
+    
     "tests/lists/reduce.py",
+    #"tests/lists/subclass.py", 
+    #"tests/lists/subclass2.py",
+    #"tests/lists/subclass3.py",
 
     "tests/libraries/xmlwriter.py",
 
+    
+    "tests/basic/raise_nameerror.py", # Makes no sense in crystal, b/c is a runtime error.
+
+    # No module imports work properly.
+    "tests/modules/classname.py",
+    "tests/modules/from_import.py",
+    "tests/modules/from_import_as_module.py",
+    "tests/modules/import.py",
+    "tests/modules/import_alias.py",
+    "tests/modules/import_as_module.py",
+    "tests/modules/import_class.py",
+    "tests/modules/import_global.py",
+    "tests/modules/import_init.py",
+    "tests/modules/import_multi.py",
     "tests/modules/import_diamond.py",
     "tests/modules/module_name.py",
     "tests/modules/rng.py",
 
     "tests/strings/other_strings.py",    # not support byte-strings
-    #"tests/strings/replace2.py",         # not support 3rd argument.
-
     "tests/strings/string_format_efg.py", # crystal doesnt support %F
     "tests/strings/string_format_o.py",   # not support, diffs
     "tests/strings/string_format_u.py",   # unsupported in python per PEP-237
     "tests/strings/string_format_x.py",  # not support, diffs
-
 
     # No numpy or unittest cases work.
     
