@@ -1,6 +1,12 @@
 # Extend Crystal Enumerable with equivalent of Python's all/any methods
 
 module Enumerable
+  def py_each(&block : T -> _)
+    self.each do |*args|
+      yield *args
+    end
+  end
+
   def py_all?
     result = true
     self.each do |a|

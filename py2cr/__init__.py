@@ -619,9 +619,9 @@ class RB(object):
                      end
             """
             if len(self._function_args) == 0:
-                self.write("%s = lambda do" % func_name)
+                self.write("%s = -> do" % func_name)
             else:
-                self.write("%s = lambda do |%s|" % (func_name, rb_args))
+                self.write("%s = ->(%s) do" % (func_name, rb_args))
             self._lambda_functions.append(func_name)
         else:
             if self._is_module and not self._class_name:
@@ -760,11 +760,14 @@ class RB(object):
                 else:
                     self._self_functions.append(stmt.name)
         if len(self._class_functions) != 0:
-            self.write("def method_missing(method, *args)")
-            self.indent()
-            self.write("self.class.__send__ method, *args")
-            self.dedent()
-            self.write("end")
+            # for staticmethods, also define an instance method
+            for clsfuncname in self._class_functions:
+                self.write("# instance-method from @staticmethod")
+                self.write("def %s(*args,**kwargs)" % clsfuncname)
+                self.indent()
+                self.write("self.class.%s(*args,**kwargs)" % clsfuncname)
+                self.dedent()
+                self.write("end")
 
         self._classes_functions[node.name] = self._class_functions
         if self._verbose:
@@ -1025,7 +1028,7 @@ class RB(object):
             self.write("%s = false" % orelse_dummy)
 
         ##OLD-FOR-LOOP## self.write("for %s in %s" % (for_target, for_iter))
-        self.write("%s.each do |%s|" % (for_iter, for_target))
+        self.write("%s.py_each do |%s|" % (for_iter, for_target))
         self.indent()
         for stmt in node.body:
             self.visit(stmt)

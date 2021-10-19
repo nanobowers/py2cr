@@ -42,11 +42,20 @@ def main():
         default=False,
         help="ignores error( don't display them after tests)"
         )
+    option_parser.add_option(
+        "--fail-only",
+        action="store_true",
+        dest="fail_only",
+        default=False,
+        help="run failing known-to-fail tests only"
+        )
     options, args = option_parser.parse_args()
     runner = testtools.runner.Py2RbTestRunner(verbosity=2)
     results = None
     if options.run_all:
         results = runner.run(testtools.tests.ALL)
+    elif options.fail_only:
+        results = runner.run(testtools.tests.KNOWN_TO_FAIL)
     elif args:
         results = runner.run(testtools.tests.get_tests(args))
     else:

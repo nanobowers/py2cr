@@ -1,3 +1,5 @@
+from typing import List
+
 # iterating over a list
 print('-- list --')
 a = [1,2,3,4,5]
@@ -17,7 +19,7 @@ for x in a:
 print('-- dict  --')
 a = {'a':1,'b':2,'c':3 }
 
-keys = []
+keys : List[str] = []
 for x in a:
     keys.append(x)
 

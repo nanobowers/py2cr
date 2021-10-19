@@ -3,12 +3,11 @@ KNOWN_TO_FAIL = [
     "tests/basic/nestedclass.py",
     "tests/basic/listcomp2.py",
     "tests/basic/del_local.py",
-    "tests/basic/valueerror.py",
     "tests/basic/del_global.py",
+    "tests/basic/valueerror.py",
     "tests/basic/generator.py",
     "tests/basic/default.py",    # Can't call local variable in arguments.
-    "tests/basic/for_in2.py",    # Can't support dict (not use items()/keys()/values()) case.
-    "tests/basic/hasattr2.py",
+    #"tests/basic/for_in2.py",    # WORKING! Can't support dict (not use items()/keys()/values()) case.
     "tests/basic/oo_super.py",   # Multiple inheritance can not be supported
     "tests/basic/oo_diamond.py", # Multiple inheritance can not be supported
     "tests/basic/oo_static_inherit2.py", # A class method of the lowercase name class is unsupported.
@@ -19,9 +18,20 @@ KNOWN_TO_FAIL = [
     "tests/functions/sort_cmp.py",
     "tests/functions/sort23.py",
 
+    # decorators may be technically possible in Crystal with lots of
+    # gymnastics and lambdas, but it's probably not worth the hassle..
     "tests/decorator/class.py",
     "tests/decorator/decorator.py",
+    "tests/decorator/function1.py",
+    "tests/decorator/function2.py",
+    "tests/decorator/function3.py",
 
+    "tests/basic/assign_bad.py", # known bad multi-assignment of val,nothing via tuple
+    "tests/basic/getattr.py", # crystal disallows dynamic method dispatch
+
+    "tests/basic/hasattr1.py", # crystal cannot define inst-vars on the fly
+    "tests/basic/hasattr2.py", # crystal cannot define inst-vars on the fly
+    
     # lambdas do not work currently because they must be typed in crystal.
     # typing of lambdas is very uncommon in python-land.
     # Might be supportable with typeannotation of Callable in the future, but
@@ -32,11 +42,32 @@ KNOWN_TO_FAIL = [
     "tests/basic/lambda_map.py",
 
     "tests/basic/del_attr.py", # cannot delete an instance variable in crystal, afaik.
+
+
+    # Failing OO, should
+    # TODO print reasons for each failure
+    #"tests/basic/oo.py", #py2cr fail
+    #"tests/basic/oo_attributes.py", # py2cr fail
+    #"tests/basic/oo_inherit.py", # py2cr fail
+    #"tests/basic/oo_inherit_simple.py", # py2cr fail
+    #"tests/basic/oo_inherit_simple_super1.py", # py2cr fail
+    #"tests/basic/oo_inherit_simple_super2.py", # py2cr fail
+    #"tests/basic/oo_inherit_simple_super3.py", # py2cr fail
+    
+    "tests/basic/set.py", # crystal set requires templating type
+    
+    "tests/basic/super2.py", # technically, crystal doesnt support this via https://forum.crystal-lang.org/t/call-a-method-on-parent-thats-also-defined-on-the-child-from-a-different-method/3493
+
+    "tests/basic/tuple2.py", # diff issue: one case returns Array instead of Tuple
     
     "tests/lists/reduce.py",
-    #"tests/lists/subclass.py", 
-    #"tests/lists/subclass2.py",
-    #"tests/lists/subclass3.py",
+    "tests/lists/super2.py", # cry not working 
+    "tests/lists/subclass.py", # cry not working
+    "tests/lists/subclass2.py", # cry not working
+    "tests/lists/subclass3.py", # cry not working
+
+
+
 
     "tests/libraries/xmlwriter.py",
 
@@ -58,14 +89,20 @@ KNOWN_TO_FAIL = [
     "tests/modules/module_name.py",
     "tests/modules/rng.py",
 
-    "tests/strings/other_strings.py",    # not support byte-strings
+    "tests/strings/fstrings_diff.py",     # output formatting DIFFERENCES
+    "tests/strings/other_strings.py",     # not support byte-strings
     "tests/strings/string_format_efg.py", # crystal doesnt support %F
-    "tests/strings/string_format_o.py",   # not support, diffs
+    "tests/strings/string_format_o.py",   # output formatting DIFFERENCES
     "tests/strings/string_format_u.py",   # unsupported in python per PEP-237
-    "tests/strings/string_format_x.py",  # not support, diffs
-
-    # No numpy or unittest cases work.
+    "tests/strings/string_format_x.py",   # output formatting DIFFERENCES
     
+    # No numpy or unittest cases work.
+
+    "tests/deep-learning-from-scratch/and_gate.py", # relies on numpy
+    "tests/deep-learning-from-scratch/relu.py", # relies on numpy
+    "tests/deep-learning-from-scratch/sigmoid.py", # relies on numpy
+    "tests/deep-learning-from-scratch/step_function.py", # relies on numpy
+
     "tests/numpy/abs.py",
     "tests/numpy/all.py",
     "tests/numpy/any.py",

@@ -130,5 +130,11 @@ class String
   end
 
   # alias :count_r :count
-  # alias :each :chars
+  
+  def py_each
+    self.chars.each do |c|
+      yield c
+    end
+  end
+  
 end

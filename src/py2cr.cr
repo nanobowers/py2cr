@@ -14,7 +14,7 @@ require "./py2cr/range"
 require "./py2cr/set"
 require "./py2cr/string"
 require "./py2cr/tuple"
-
+require "./py2cr/proc"
 # Replacements for Python modules
 require "./py2cr/py_os"
 require "./py2cr/py_sys"
