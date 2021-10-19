@@ -1,7 +1,8 @@
+from typing import List
 
 class bar(object):
 
-    def __init__(self,name):
+    def __init__(self,name : str):
         self.name = name
 
     def setname(self,name):
@@ -9,12 +10,12 @@ class bar(object):
 
 class foo(bar):
     
-    registered = []
+    registered : List["foo"] = []
 
-    def __init__(self,val,name):
+    def __init__(self, val : int, name : str):
         self.fval = val
         self.register(self)
-        bar.__init__(self,name)
+        bar.__init__(self, name)
 
     def inc(self):
         self.fval += 1

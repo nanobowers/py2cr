@@ -83,6 +83,8 @@ class CrystalTypes:
             return self.visit_Tuple(node)
         elif isinstance(node, ast.Index):
             return self.visit(node.value)
+        elif isinstance(node, ast.Constant):
+            return self.visit_Constant(node)
         else:
             raise Exception("Unknown klass %s in CrystalTypes" % type(node))
         
@@ -115,9 +117,17 @@ class CrystalTypes:
             return self.visit(node_slice) + "?"
         else:
             return "%s(%s)" % (self.visit(node.value), self.visit(node.slice))
+
+    def visit_Constant(self, node):
+        const_typename = node.value.__class__.__name__
+        if const_typename in self.name_map:
+            return self.name_map[const_typename]
+        return "_"
         
     @classmethod
     def constant(cls, node, nilable=True):
+        #if not hasattr(node, "value"):
+        #    return "_"
         const_typename = node.value.__class__.__name__
         if const_typename in cls.name_map:
             crystal_typename = cls.name_map[const_typename]

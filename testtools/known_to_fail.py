@@ -8,9 +8,12 @@ KNOWN_TO_FAIL = [
     "tests/basic/generator.py",
     "tests/basic/default.py",    # Can't call local variable in arguments.
     #"tests/basic/for_in2.py",    # WORKING! Can't support dict (not use items()/keys()/values()) case.
+
     "tests/basic/oo_super.py",   # Multiple inheritance can not be supported
     "tests/basic/oo_diamond.py", # Multiple inheritance can not be supported
     "tests/basic/oo_static_inherit2.py", # A class method of the lowercase name class is unsupported.
+
+    
     "tests/basic/vars.py",       # Can't match variable scope
     "tests/basic/vars2.py",      # Can't match variable scope
     "tests/basic/yield.py",      # Difficult
@@ -39,20 +42,22 @@ KNOWN_TO_FAIL = [
     "tests/basic/lambda.py",
     "tests/basic/lambda2.py",
     "tests/basic/lambda3.py",
-    "tests/basic/lambda_map.py",
 
     "tests/basic/del_attr.py", # cannot delete an instance variable in crystal, afaik.
 
 
-    # Failing OO, should
-    # TODO print reasons for each failure
-    #"tests/basic/oo.py", #py2cr fail
-    #"tests/basic/oo_attributes.py", # py2cr fail
-    #"tests/basic/oo_inherit.py", # py2cr fail
-    #"tests/basic/oo_inherit_simple.py", # py2cr fail
-    #"tests/basic/oo_inherit_simple_super1.py", # py2cr fail
-    #"tests/basic/oo_inherit_simple_super2.py", # py2cr fail
-    #"tests/basic/oo_inherit_simple_super3.py", # py2cr fail
+    # These failing OO tests: for these these we are generating
+    # a nilable inst-var for each class-var and it is very tricky
+    # to figure out how to type these variables.
+    # Possibly can revisit with something tricky in the future
+    "tests/basic/oo.py", #py2cr fail
+    "tests/basic/oo_attributes.py", # py2cr fail
+    "tests/basic/oo_inherit.py", # py2cr fail
+    "tests/basic/oo_inherit_simple.py", # py2cr fail
+    "tests/basic/oo_inherit_simple_super1.py", # py2cr fail
+    "tests/basic/oo_inherit_simple_super2.py", # py2cr fail
+    "tests/basic/oo_inherit_simple_super3.py", # py2cr fail
+
     
     "tests/basic/set.py", # crystal set requires templating type
     
@@ -60,13 +65,10 @@ KNOWN_TO_FAIL = [
 
     "tests/basic/tuple2.py", # diff issue: one case returns Array instead of Tuple
     
-    "tests/lists/reduce.py",
     "tests/lists/super2.py", # cry not working 
     "tests/lists/subclass.py", # cry not working
     "tests/lists/subclass2.py", # cry not working
     "tests/lists/subclass3.py", # cry not working
-
-
 
 
     "tests/libraries/xmlwriter.py",

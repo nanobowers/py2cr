@@ -18,3 +18,7 @@ print(x)
 x,y = [3,2]
 print(x)
 print(y)
+
+# weird list assign case..
+x, = [3]
+print(x)
