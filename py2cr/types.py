@@ -126,9 +126,15 @@ class CrystalTypes:
         
     @classmethod
     def constant(cls, node, nilable=True):
-        #if not hasattr(node, "value"):
-        #    return "_"
-        const_typename = node.value.__class__.__name__
+        if isinstance(node, ast.Constant): # py3.8+
+            const_typename = node.value.__class__.__name__
+        elif isinstance(node, ast.Num):
+            const_typename = node.n.__class__.__name__
+        elif isinstance(node, ast.Str):
+            const_typename = 'str'
+        else:
+            raise Exception("Invalid constant node: %s", node)
+        
         if const_typename in cls.name_map:
             crystal_typename = cls.name_map[const_typename]
             if nilable:
