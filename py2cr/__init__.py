@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+from typing import Tuple, Optional
+
 import ast
 import six
 import inspect
@@ -287,7 +289,7 @@ class RB(object):
         self._verbose = verbose
         self._mode = 0 # Error Stop Mode : 0:stop(defalut), 1:warning(for all script mode), 2:no error(for module mode)
         self._result = 0 # Convert Staus : 0:No Error, 1:Include Warning, 2:Include Error
-        paths = [x.capitalize() for x in path.split('/')]
+        paths = [formatter.capitalize(x) for x in path.split('/')]
         self._dir_path = dir_path
         self._path = []
         for p in paths:
@@ -304,7 +306,7 @@ class RB(object):
             print("base_path_count[%s] dir_path: %s, path : %s : %s" % (self._base_path_count, dir_path, path, self._path))
             print("mod_paths : %s" % self.mod_paths)
         self.__formatter = formatter.Formatter()
-        self.capitalize = self.__formatter.capitalize
+        #self.capitalize = self.__formatter.capitalize
         self.write = self.__formatter.write
         self.read = self.__formatter.read
         self.clear = self.__formatter.clear
@@ -1306,8 +1308,8 @@ class RB(object):
 
             if node.names[0].asname != None:
                 if node.names[0].name in self._import_files:
-                    base = '::'.join([self.capitalize(x) for x in node.names[0].name.split('.')[self._base_path_count:]])
-                    self.write("%s = %s" % (self.capitalize(node.names[0].asname), base))
+                    base = '::'.join([formatter.capitalize(x) for x in node.names[0].name.split('.')[self._base_path_count:]])
+                    self.write("%s = %s" % (node.names[0].asname.capitalize(), base))
                     self._import_files.append(node.names[0].asname)
                 # No Use
                 #elif node.names[0].name in self._class_names:
@@ -1475,16 +1477,16 @@ class RB(object):
                     break
             else:
                 self.write("require \"%s\"" % mod_name)
-            base = '::'.join([self.capitalize(x) for x in node.module.split('.')[self._base_path_count:]])
+            base = '::'.join([formatter.capitalize(x) for x in node.module.split('.')[self._base_path_count:]])
             self.write("include %s" % base)
 
             if node.names[0].asname != None:
                 if node.names[0].name in self._import_files:
-                    base = '::'.join([self.capitalize(x) for x in node.names[0].name.split('.')[self._base_path_count:]])
-                    self.write("%s = %s" % (self.capitalize(node.names[0].asname), base))
+                    base = '::'.join([formatter.capitalize(x) for x in node.names[0].name.split('.')[self._base_path_count:]])
+                    self.write("%s = %s" % (formatter.capitalize(node.names[0].asname), base))
                     self._import_files.append(node.names[0].asname)
                 elif node.names[0].name in self._class_names:
-                    self.write("%s = %s" % (self.capitalize(node.names[0].asname), self.capitalize(node.names[0].name)))
+                    self.write("%s = %s" % (formatter.capitalize(node.names[0].asname), formatter.capitalize(node.names[0].name)))
                     self._class_names.add(node.names[0].asname)
                     self._classes_self_functions_args[node.names[0].asname] = self._classes_self_functions_args[node.names[0].name]
                 else:
@@ -2141,13 +2143,13 @@ class RB(object):
 
         rb_args = [ self.visit(arg) for arg in node.args ]
         """ [method argument set Method Object] :
-        <Python> def describe():
-                     return "world"
-                 describe = mydecorator(describe)
+        <Python>    def describe():
+                        return "world"
+                    describe = mydecorator(describe)
         <Crystal>   def describe()
-                     return "world"
-                 end
-                 describe = mydecorator(method(:describe))
+                        return "world"
+                    end
+                    describe = mydecorator(method(:describe))
         """
         self._func_args_len = len(rb_args)
         if not isinstance(node.func, ast.Call):
@@ -2188,7 +2190,7 @@ class RB(object):
                                        Moduleb::Moduleb_class (base_path_count=1)
                 """
                 if func in self._class_names:
-                    func = self.capitalize(func) + '.new'
+                    func = formatter.capitalize(func) + '.new'
                 """ <Python> * tests/modules/imported/modulec.py
                                import imported.submodules.submodulea
                                imported.submodules.submodulea.foo()
@@ -2196,7 +2198,7 @@ class RB(object):
                                require_relative "submodules/submodulea"
                                Submodules::Submodulea::foo()
                 """
-                base = '::'.join([self.capitalize(x) for x in f.split('.')[self._base_path_count:]])
+                base = '::'.join([formatter.capitalize(x) for x in f.split('.')[self._base_path_count:]])
                 if base != '':
                     func = base + '.' + func # was '::'
                 if self._verbose:
@@ -2213,7 +2215,7 @@ class RB(object):
                     print("Call mod_paths : func : %s " % func)
                 func = func.replace(f + '.', '')
                 if func in self._class_names:
-                    func = self.capitalize(func) + '.new'
+                    func = formatter.capitalize(func) + '.new'
                 """ <Python> * tests/modules/imported/modulee.py
                                from imported.submodules import submodulea
                                submodulea.foo()
@@ -2222,7 +2224,7 @@ class RB(object):
                                include Submodules
                                Submodulea::foo()
                 """
-                base = '::'.join([self.capitalize(x) for x in f.split('.')])
+                base = '::'.join([formatter.capitalize(x) for x in f.split('.')])
                 if base != '':
                     func = base + '::' + func
                 if self._verbose:
@@ -2234,7 +2236,7 @@ class RB(object):
         <Crystal>   Foo.new()
         """
         if func in self._class_names:
-            func = self.capitalize(func) + '.new'
+            func = formatter.capitalize(func) + '.new'
 
         """ [method argument set Keyword Variables] :
         <Python> def foo(a, b=3):
@@ -2801,37 +2803,35 @@ class RB(object):
             s.append(self.visit(e))
         return ", ".join(s)
 
-    def visit_Slice(self, node):
+    def process_slice_with_step(self, node) -> Tuple[str, Optional[str]]:
+        """ Special subcase of visit_Slice where we want to return
+        a range-string plus a separate step-function that will be
+        used to tack on after the Subscript"""
+        
+        lowval = self.visit(node.lower) if node.lower else 0
+        if node.upper:
+            rngstr = "%s...%s" % (lowval, self.visit(node.upper))
+        else:
+            rngstr = "%s..-1" % lowval
+
+        # suffix function to do stepping
+        if node.step:
+            suffix = "each_slice(%s).map(&.first)" % self.visit(node.step)
+        else:
+            suffix = None
+        return (rngstr, suffix)
+
+    def visit_Slice(self, node) -> str:
         """
         Slice(expr? lower, expr? upper, expr? step)
         """
-        if node.lower and node.upper:
-            if node.step:
-                """ <Python>    [8, 9, 10, 11, 12, 13, 14][1:6:2]
-                    <Crystal>   [8, 9, 10, 11, 12, 13, 14][1...6].each_slice(2).map(&.first) """
-                return "%s...%s,each_slice(%s).map(&.first)" % (self.visit(node.lower),
-                    self.visit(node.upper), self.visit(node.step))
-            else:
-                return "%s...%s" % (self.visit(node.lower), self.visit(node.upper))
-        if node.upper:
-            if node.step:
-                return "0...%s,each_slice(%s).map(&.first)" % (self.visit(node.upper), self.visit(node.step))
-            else:
-                return "0...%s" % (self.visit(node.upper))
-        if node.lower:
-            if node.step:
-                return "%s..-1,each_slice(%s).map(&.first)" % (self.visit(node.lower), self.visit(node.step))
-            else:
-                return "%s..-1" % (self.visit(node.lower))
-        if node.step:
-            return "0..-1,each_slice(%s).map(&.first)" % self.visit(node.step)
-        else:
-            return "0..-1"
-
+        rangestr, _ = self.process_slice_with_step(node)
+        return rangestr
+        
     def visit_Subscript(self, node):
         self._is_string_symbol = False
         name = self.visit(node.value)
-        if isinstance(node.slice, (ast.Index, ast.Constant)):
+        if isinstance(node.slice, (ast.Index, ast.Constant, ast.Name)):
             for arg in self._function_args:
                 if arg == ("**%s" % name):
                     self._is_string_symbol = True
@@ -2841,19 +2841,16 @@ class RB(object):
         if isinstance(node.slice, (ast.ExtSlice)):
             s = self.visit(node.slice)
             return "%s[%s]" % (self.ope_filter(name), s)
+        elif isinstance(node.slice, (ast.Slice)):
+            rangestr, suffix = self.process_slice_with_step(node.slice)
+            if suffix:
+                return "%s[%s].%s" % (self.ope_filter(name), rangestr, suffix)
+            return "%s[%s]" % (self.ope_filter(name), rangestr)
         else:
-            # ast.Slice
-            index = self.visit(node.slice)
-            if ',' in index:
-                """ [See visit_Slice]
-                <Python>    [8, 9, 10, 11, 12, 13, 14][1:6:2]
-                <Crystal>   [8, 9, 10, 11, 12, 13, 14][1...6].each_slice(2).map(&.first)
-                """
-                indexs = index.split(',')
-                return "%s[%s].%s" % (self.ope_filter(name), indexs[0], indexs[1])
-            else:
-                return "%s[%s]" % (self.ope_filter(name), index)
+            s = self.visit(node.slice)
+            return "%s[%s]" % (self.ope_filter(name), s)
 
+        
     def visit_Index(self, node):
         return self.visit(node.value)
         #return "[%s]" % (self.visit(node.value))
@@ -2880,7 +2877,7 @@ class RB(object):
                 sys.stderr.write("Warning : yield is not supported : \n")
             return "yield"
 
-    def empty_list(self, node, crytype = None):
+    def empty_list(self, node, crytype = None) -> str:
         """ 
         Return Crystal representation of an empty Array
         Crystal needs the annotation. If we dont have one on the
@@ -2893,7 +2890,7 @@ class RB(object):
             sys.stderr.write("Warning : empty-list infer issue (%s line:%d col:%d\n" % (node, node.lineno, node.col_offset))
             return "[]"
 
-    def empty_hash(self, node, crytype = None):
+    def empty_hash(self, node, crytype = None) -> str:
         """ 
         Return Crystal representation of an empty Hash 
         Crystal needs the annotation. If we dont have one on the
@@ -2907,13 +2904,13 @@ class RB(object):
             return "{}"
         
 
-def convert_py2rb(s, dir_path, path='', base_path_count=0, modules=[], mod_paths={}, no_stop=False, verbose=False):
+def convert_py2cr(s, dir_path, path='', base_path_count=0, modules=[], mod_paths={}, no_stop=False, verbose=False):
     """
     Takes Python code as a string 's' and converts this to Crystal.
 
     Example:
 
-    >>> convert_py2rb("x[3:]")
+    >>> convert_py2cr("x[3:]")
     'x[3..-1]'
 
     """
@@ -2942,7 +2939,7 @@ def convert_py2rb(s, dir_path, path='', base_path_count=0, modules=[], mod_paths
 
     return (v.get_result(), header, data)
 
-def convert_py2rb_write(filename, base_path_count=0, subfilenames=[], base_path=None, require=None, builtins=None, output=None, force=None, no_stop=False, verbose=False):
+def convert_py2cr_write(filename, base_path_count=0, subfilenames=[], base_path=None, require=None, output=None, force=None, no_stop=False, verbose=False):
     if output:
         if not force:
             if os.path.exists(output):
@@ -2952,22 +2949,12 @@ def convert_py2rb_write(filename, base_path_count=0, subfilenames=[], base_path=
     else:
         output = sys.stdout
 
-    builtins_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'builtins')
     if require:
         output.write("require \"py2cr\"\n")
-
-    if builtins:
-        if builtins_dir:
-            builtins = open(os.path.join(builtins_dir, "module.cr"))
-        else:
-            builtins = open("module.cr")
-        output.write(builtins.read())
-        builtins.close
 
     mods = []
     mod_paths = OrderedDict()
     for sf in subfilenames:
-        #print(sf)
         rel_path = os.path.relpath(sf, os.path.dirname(filename))
         name_path, ext = os.path.splitext(rel_path)
         mod_paths[sf] = name_path
@@ -2986,8 +2973,8 @@ def convert_py2rb_write(filename, base_path_count=0, subfilenames=[], base_path=
             dir_path = ''
     with open(filename, 'r') as f:
         s = f.read() # unsafe for large files!
-        rtn, header, data = convert_py2rb(s, dir_path, name_path, base_path_count, mods, mod_paths, no_stop=no_stop, verbose=verbose)
-        if require or builtins:
+        rtn, header, data = convert_py2cr(s, dir_path, name_path, base_path_count, mods, mod_paths, no_stop=no_stop, verbose=verbose)
+        if require:
             output.write(header)
         output.write(data)
     output.close
@@ -3026,14 +3013,8 @@ def main():
     parser.add_option("-r", "--include-require",
                       action="store_true",
                       dest="include_require",
-                      default=False,
-                      help="require py2rb/builtins/module.cr library in the output")
-
-    parser.add_option("-b","--include-builtins",
-                      action="store_true",
-                      dest="include_builtins",
-                      default=False,
-                      help="include py2rb/builtins/module.cr library in the output")
+                      default=True,
+                      help="require py2cr library in the output")
 
     parser.add_option("-p", "--base-path",
                       action="store",
@@ -3054,34 +3035,11 @@ def main():
                       default=False,
                       help="convert all local import module files of specified Python file. *.py => *.cr")
 
-    parser.add_option("-l", "--store-library-path",
-                      action="store",
-                      dest="store_library_path",
-                      default=False,
-                      help="store py2rb/builtins/module.cr library file in the specified directory")
-
     options, args = parser.parse_args()
-
-    if options.store_library_path:
-        if not os.path.isdir(options.store_library_path):
-            sys.stderr.write('Error : %s directory is not exists.\n' % options.store_library_path)
-            exit(1)
-        builtins_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'builtins')
-        output = os.path.join(options.store_library_path, "module.cr")
-        if not options.force:
-            if os.path.exists(output):
-                sys.stderr.write('Error : %s already exists.\n' % output)
-                exit(1)
-        with open(output, 'w') as f:
-            module_f = open(os.path.join(builtins_dir, "module.cr"))
-            f.write(module_f.read())
-            module_f.close
-        sys.stderr.write('OK :  %s file was stored.\n' % output)
-        exit(0)
 
     if len(args) == 0:
         parser.print_help()
-        exit(1)
+        sys.exit(1)
 
     filename = args[0]
 
@@ -3098,7 +3056,7 @@ def main():
     mods_all = {}
 
     # py_path       : python file path
-    def get_mod_path(py_path):
+    def get_mod_path(py_path : str):
         results = []
         dir_path = os.path.dirname(py_path) if os.path.dirname(py_path) else '.'
         dir_path = os.path.relpath(dir_path, base_dir_path)
@@ -3203,15 +3161,15 @@ def main():
         subfilenames = set(subfilenames)
         if options.output:
             name_path, ext = os.path.splitext(py_path)
-            output=name_path + '.cr'
+            output = name_path + '.cr'
         else:
-            output=None
+            output = None
 
         if options.verbose:
             print('Try  : ' + py_path + ' : ')
-        rtn = convert_py2rb_write(py_path, options.base_path_count, subfilenames,
+        rtn = convert_py2cr_write(py_path, options.base_path_count, subfilenames,
             base_path=base_dir_path,
-            require=options.include_require, builtins=options.include_builtins,
+            require=options.include_require,
             output=output, force=options.force, no_stop=True, verbose=options.verbose)
         if not options.silent:
             if options.mod or output:

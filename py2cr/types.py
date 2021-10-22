@@ -52,7 +52,7 @@ class CrystalTypes:
         if subscript_name.lower() != "tuple":
             raise Exception(f"Expecting ast.Subscript value to be a tuple but got {subscript_name}")
         return self.visit(node.slice)
-        
+
     def unwrap_dict(self):
         node = self.node
         # expect node to be something to unwrap
@@ -66,12 +66,12 @@ class CrystalTypes:
 
         nsv = node_slice_value(node)
         if not isinstance(nsv, ast.Tuple):
-            raise
+            raise Exception("Expecting ast.Tuple here and didnt get one.")
 
         return (self.visit(nsv.elts[0]), self.visit(nsv.elts[1]))
 
 
-        
+
     def visit(self, node = None):
         if node is None:
             node = self.node
@@ -86,8 +86,8 @@ class CrystalTypes:
         elif isinstance(node, ast.Constant):
             return self.visit_Constant(node)
         else:
-            raise Exception("Unknown klass %s in CrystalTypes" % type(node))
-        
+            raise Exception(f"Unknown klass {type(node)} in CrystalTypes")
+
     def visit_Name(self, node):
         """
         Name(identifier id, expr_context ctx)
@@ -100,7 +100,7 @@ class CrystalTypes:
     def visit_Tuple(self, node):
         els = [self.visit(e) for e in node.elts]
         return ", ".join(els)
-        
+
     def visit_Subscript(self, node):
         """
         Special handling for Union and Optional types.
@@ -113,17 +113,17 @@ class CrystalTypes:
             pipeargs = [self.visit(e) for e in node_slice.elts]
             pipetypes = " | ".join(pipeargs)
             return "( " + pipetypes + " )"
-        elif name == "Optional":
+        if name == "Optional":
             return self.visit(node_slice) + "?"
-        else:
-            return "%s(%s)" % (self.visit(node.value), self.visit(node.slice))
+
+        return "%s(%s)" % (self.visit(node.value), self.visit(node.slice))
 
     def visit_Constant(self, node):
         const_typename = node.value.__class__.__name__
         if const_typename in self.name_map:
             return self.name_map[const_typename]
         return "_"
-        
+
     @classmethod
     def constant(cls, node, nilable=True):
         if isinstance(node, ast.Constant): # py3.8+
@@ -133,14 +133,11 @@ class CrystalTypes:
         elif isinstance(node, ast.Str):
             const_typename = 'str'
         else:
-            raise Exception("Invalid constant node: %s", node)
-        
+            raise Exception(f"Invalid constant node: {node}")
+
         if const_typename in cls.name_map:
             crystal_typename = cls.name_map[const_typename]
             if nilable:
                 return crystal_typename + "?"
-            else:
-                return crystal_typename
-        else:
-            return "_"
-        
+            return crystal_typename
+        return "_"
