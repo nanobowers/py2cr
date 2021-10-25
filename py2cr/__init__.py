@@ -1,30 +1,37 @@
 #! /usr/bin/env python
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Dict
 
 import ast
-import six
 import inspect
 import sys
 import os.path
-from optparse import OptionParser
+import argparse
 import re
-import yaml
 import glob
 import copy
 from collections import OrderedDict
+
+import yaml
 
 # local code
 from . import formatter
 from . import types
 
+from .translator import *
+#from . import numpy
+
+registry = TranslatorRegistry()
+
+###############################
 try:
     ast.Constant()
-except:
+except NameError:
     # python 3.5 doesnt have ast.Constant, which will cause failures later on
     # so we define a dummy class/constant here.
     ast.Constant = type('Constant', (object,), dict())
-   
+
+# NOTE: Scope is used as a decorator (@scope)
 def scope(func):
     func.scope = True
     return func
@@ -37,37 +44,10 @@ class RB(object):
     module_map = {}
     yaml_files = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'modules/*.yaml')
     for filename in glob.glob(yaml_files):
-        with open(filename, 'r') as f:
+        with open(filename, 'r', encoding="utf-8") as f:
             module_map.update(yaml.safe_load(f))
 
-    using_map = {
-#        'EnumerableEx'        : False,
-#        'PythonZipEx'         : False,
-#        'PythonPrintEx'       : True,
-#        'PythonIsBoolEx'      : False,
-#        'PythonIndexEx'       : False,
-#        'PythonFindEx'        : False,
-#        'PythonSplitEx'       : False,
-#        'PythonStripEx'       : False,
-#        'PythonStringCountEx' : True,
-#        'PythonRemoveEx'      : False,
-#        'PythonMethodEx'      : False,
-    }
 
-    using_key_map = {
-#        'all'        : 'EnumerableEx',
-#        'any'        : 'EnumerableEx',
-#        'zip'        : 'PythonZipEx',
-#        'find'       : 'PythonIndexEx',
-#        'rfind'      : 'PythonIndexEx',
-#        'split'      : 'PythonSplitEx',
-#        'strip'      : 'PythonStripEx',
-#        'lstrip'     : 'PythonStripEx',
-#        'rstrip'     : 'PythonStripEx',
-#        'remove'     : 'PythonRemoveEx',
-#        'getattr'    : 'PythonMethodEx',
-    }
-    
     # python 3
     name_constant_map = {
         True  : 'true',
@@ -142,23 +122,21 @@ class RB(object):
 
     # isinstance(foo, String) => foo.is_a?(String)
     methods_map_middle = {
-        'isinstance' : 'is_a?',
-
-        'hasattr'    : 'instance_variable_defined?',
-        #'getattr'    : 'send',
-        #'getattr'    : 'method',
-        'getattr'    : 'getattr',
+        'isinstance' : 'is_a?',  # only valid at compile-time in Crystal
         'all' : 'py_all?',
         'any' : 'py_any?',
         'remove': 'py_remove',
+
+        # probably should remove these:
+        'hasattr'    : 'instance_variable_defined?',
         'getattr': 'py_getattr',
     }
     # np.array([x1, x2]) => Numo::NArray[x1, x2]
-    order_methods_with_bracket = {}
-    methods_map = {}
-    ignore = {}
-    mod_class_name = {}
-    order_inherited_methods = {}
+    order_methods_with_bracket : Dict[str, str] = {}
+    methods_map : Dict[str, str] = {}
+    ignore : Dict[str, str] = {}
+    mod_class_name : Dict[str, str] = {}
+    order_inherited_methods : Dict[str, str] = {}
 
     # float(foo) => foo.to_f
     reverse_methods = {
@@ -185,8 +163,6 @@ class RB(object):
         'count'      : 'py_count',
         'upper'      : 'upcase',
         'lower'      : 'downcase',
-        'find'       : 'py_find',
-        'rfind'      : 'py_rfind',
         'endswith'   : 'ends_with?',
         'startswith' : 'starts_with?',
         'replace'    : 'py_replace', # could distinguish gsub case if we were based on #-args.
@@ -219,17 +195,12 @@ class RB(object):
         'join',
     ])
 
-    list_map = set(['list']) # Array
-    tuple_map = set(['tuple']) # Tuple
-    dict_map = set(['dict']) # Hash
-
-    iter_map = set(['map']) 
+    list_map   = set(['list']) # Array
+    tuple_map  = set(['tuple']) # Tuple
+    dict_map   = set(['dict']) # Hash
+    iter_map   = set(['map']) 
     reduce_map = set(['reduce']) 
-
-    range_map = set([                # Array
-        'range',
-        'xrange',
-    ])
+    range_map  = set(['range','xrange'])
 
     bool_op = {
         'And'    : '&&',
@@ -279,15 +250,9 @@ class RB(object):
     def get_result(self):
         return self._result
 
-    def set_using(self):
-        for key, value in self.using_map.items():
-            if value:
-                 self.write("using %s" % key)
-        self.write('')
-
-    def __init__(self, path='', dir_path='', base_path_count=0, mod_paths = {}, verbose=False):
+    def __init__(self, path='', dir_path='', base_path_count=0, mod_paths = None, verbose = False):
         self._verbose = verbose
-        self._mode = 0 # Error Stop Mode : 0:stop(defalut), 1:warning(for all script mode), 2:no error(for module mode)
+        self._mode = 0 # Error Stop Mode : 0:stop(default), 1:warning(for all script mode), 2:no error(for module mode)
         self._result = 0 # Convert Staus : 0:No Error, 1:Include Warning, 2:Include Error
         paths = [formatter.capitalize(x) for x in path.split('/')]
         self._dir_path = dir_path
@@ -298,13 +263,14 @@ class RB(object):
         self._base_path_count = base_path_count
         self._module_functions = []
         self._is_module = False
-        self.mod_paths = mod_paths
+        self.mod_paths = mod_paths or {}
         self._rel_path = []
         for rel_path in self.mod_paths.values():
             self._rel_path.append(rel_path.replace('/', '.'))
-        if self._verbose:
-            print("base_path_count[%s] dir_path: %s, path : %s : %s" % (self._base_path_count, dir_path, path, self._path))
-            print("mod_paths : %s" % self.mod_paths)
+            
+        self.vprint("base_path_count[%s] dir_path: %s, path : %s : %s" % (self._base_path_count, dir_path, path, self._path))
+        self.vprint("mod_paths : %s" % self.mod_paths)
+        
         self.__formatter = formatter.Formatter()
         #self.capitalize = self.__formatter.capitalize
         self.write = self.__formatter.write
@@ -386,16 +352,16 @@ class RB(object):
     def name(self, node):
         return node.__class__.__name__
 
-    def get_bool_op(self, node):
+    def get_bool_op(self, node) -> str:
         return self.bool_op[node.op.__class__.__name__]
 
-    def get_unary_op(self, node):
+    def get_unary_op(self, node) -> str:
         return self.unary_op[node.op.__class__.__name__]
 
-    def get_binary_op(self, node):
+    def get_binary_op(self, node) -> str:
         return self.binary_op[node.op.__class__.__name__]
 
-    def get_comparison_op(self, node):
+    def get_comparison_op(self, node) -> str:
         return self.comparison_op[node.__class__.__name__]
 
     def visit(self, node, scope=None, crytype=None):
@@ -437,13 +403,11 @@ class RB(object):
                        module Moduleb (base_path_count=1)
             """
             for i in range(len(self._path)):
-                if self._verbose:
-                    print("base_path_count : %s, i : %s" % (self._base_path_count, i))
+                self.vprint("base_path_count : %s, i : %s" % (self._base_path_count, i))
                 if i < self._base_path_count:
                     continue
                 p = self._path[i]
-                if self._verbose:
-                    print("p : %s" % p)
+                self.vprint("p : %s" % p)
                 self.write("module %s" % p)
                 self._is_module = True
                 self.indent()
@@ -531,7 +495,7 @@ class RB(object):
                 argxlist.append(":")
                 anno = types.CrystalTypes(arg.annotation)
                 argxlist.append(anno.visit())
-                # argxlist.append(self.visit(arg.annotation))
+
             if default is None:
                 rb_args_default.append(None)
             else:
@@ -690,8 +654,8 @@ class RB(object):
             bases.remove('Object')
         if 'object' in bases:
             bases.remove('object')
-        if self._verbose:
-            print("bases : %s" % bases)
+
+        self.vprint("bases : %s" % bases)
 
         # [Inherited Class Name]
         base_classes = []
@@ -711,8 +675,7 @@ class RB(object):
                 if i_base not in base_classes:
                     base_classes.append(i_base)
 
-        if self._verbose:
-            print("ClassDef class_name[%s] base_classes: %s base_rclasses: %s" % (node.name, base_classes, base_rclasses))
+        self.vprint("ClassDef class_name[%s] base_classes: %s base_rclasses: %s" % (node.name, base_classes, base_rclasses))
 
         self._class_name = node.name
         self._classes_base_classes[node.name] = base_classes
@@ -730,8 +693,9 @@ class RB(object):
         # [Class Name]  <Python> class foo: => <Crystal> class Foo
         class_name = node.name
         rclass_name = class_name[0].upper() + class_name[1:]
-        if self._verbose:
-           print("ClassDef class_name[%s] bases: %s" % (node.name, bases))
+
+        self.vprint("ClassDef class_name[%s] bases: %s" % (node.name, bases))
+        
         if len(bases) == 0:
             self.write("class %s" % (rclass_name))
         elif len(bases) == 1:
@@ -765,9 +729,8 @@ class RB(object):
                 self.write("end")
 
         self._classes_functions[node.name] = self._class_functions
-        if self._verbose:
-            print("self._self_functions : %s" % self._self_functions)
-            print("self._classes_self_functions : %s" % self._classes_self_functions)
+        self.vprint("self._self_functions : %s" % self._self_functions)
+        self.vprint("self._classes_self_functions : %s" % self._classes_self_functions)
         self._classes_self_functions[node.name] = self._self_functions
 
         for stmt in node.body:
@@ -824,9 +787,9 @@ class RB(object):
             self.write("def %s; @%s = @@%s if @%s.nil?; @%s; end" % (v,v,v,v,v))
             self.write("def %s=(val); @%s=val; end" % (v,v))
 
-        for func in self._self_functions:
-            if func in self.attribute_map.keys():
-                self.write("alias :%s :%s" % (self.attribute_map[func], func))
+        #for func in self._self_functions:
+        #    if func in self.attribute_map.keys():
+        #        self.write("alias :%s :%s" % (self.attribute_map[func], func))
         self.dedent()
         self.write("end")
         self._self_functions = []
@@ -838,26 +801,26 @@ class RB(object):
         self._class_self_variables = []
 
     def visit_Return(self, node):
-        if node.value is not None:
-            self.write("return %s" % self.visit(node.value))
-        else:
+        if node.value is None:
             self.write("return")
+        else:
+            self.write("return %s" % self.visit(node.value))
 
     def visit_Delete(self, node):
         """
         Delete(expr* targets)
         """
-        id = ''
+        idval = ''
         num = ''
         key = ''
-        slice = ''
+        pyslice = ''
         attr = ''
         for stmt in node.targets:
             if isinstance(stmt, (ast.Name)):
-                id = self.visit(stmt)
+                idval = self.visit(stmt)
             elif isinstance(stmt, (ast.Subscript)):
                 if isinstance(stmt.value, (ast.Name)):
-                    id = self.visit(stmt.value)
+                    idval = self.visit(stmt.value)
                 if isinstance(stmt.slice, (ast.Index)):
                     if isinstance(stmt.slice.value, (ast.Str)):
                         key = self.visit(stmt.slice)
@@ -866,7 +829,7 @@ class RB(object):
                     else:
                         raise Exception("Bad stmt.slice.value in visit_Delete %s" % type(stmt.slice.value))
                 elif isinstance(stmt.slice, (ast.Slice)):
-                    slice = self.visit(stmt.slice)
+                    pyslice = self.visit(stmt.slice)
                 elif isinstance(stmt.slice, (ast.Constant)): #py3.9
                     if isinstance(stmt.slice.value, int):
                         num = self.visit(stmt.slice)
@@ -876,7 +839,7 @@ class RB(object):
                     raise Exception("Bad stmt.slice in visit_Delete %s" % type(stmt.slice))
             elif isinstance(stmt, (ast.Attribute)):
                 if isinstance(stmt.value, (ast.Name)):
-                    id = self.visit(stmt.value)
+                    idval = self.visit(stmt.value)
                 attr = stmt.attr
             else:
                 raise Exception("Bad stmt in visit_Delete %s" % type(stmt))
@@ -884,25 +847,28 @@ class RB(object):
         if num != '':
             """ <Python>    del foo[0]
                 <Crystal>   foo.delete_at[0] """
-            self.write("%s.delete_at(%s)" % (id, num))
+            self.write("%s.delete_at(%s)" % (idval, num))
         elif key != '':
             """ <Python>    del foo['hoge']
                 <Crystal>   foo.delete['hoge'] """
-            self.write("%s.delete(%s)" % (id, key))
-        elif slice != '':
+            self.write("%s.delete(%s)" % (idval, key))
+        elif pyslice != '':
             """ <Python>    del foo[1:3]
                 <Crystal>   py_del(foo, 1...3) """
             # note py_del is defined for Array/Range args.
-            self.write("py_del(%s, %s)" % (id, slice))
+            self.write("py_del(%s, %s)" % (idval, pyslice))
         elif attr != '':
             """ <Python>    del foo.bar
                 <Crystal>   foo.instance_eval { remove_instance_variable(:@bar) } """
-            self.write("%s.instance_eval { remove_instance_variable(:@%s) }" % (id, attr))
+            self.write("%s.instance_eval { remove_instance_variable(:@%s) }" % (idval, attr))
         else:
             """ <Python>    del foo
                 <Crystal>   foo = nil """
-            self.write("%s = nil" % (id))
-
+            self.write("%s = nil" % (idval))
+            
+        # TODO: The previous two cases ("del foo.bar", "del foo") probably dont make any sense in crystal and should be removed.
+        
+        
     @scope
     def visit_Assign(self, node):
         """
@@ -1003,8 +969,8 @@ class RB(object):
         In some sense, slightly easier than Assign, b/c AnnAssign doesnt support multiple-assignment.
         AnnAssign(expr target, expr value)
         """
-        # Type annotations in python.
-        # TODO figure out how to do them in Crystal
+        # Type annotated assignments in Python.
+
         target = self.visit(node.target)
         if node.value:
             crytype = types.CrystalTypes(node.annotation)
@@ -1075,7 +1041,7 @@ class RB(object):
             orelse_dummy = self.new_dummy()
 
             self.write("%s = false" % orelse_dummy)
-            self.write("while true");
+            self.write("while true")
             self.write("    unless %s" % self.visit(node.test))
             self.write("        %s = true" % orelse_dummy)
             self.write("        break")
@@ -1105,7 +1071,6 @@ class RB(object):
         if isinstance(node.test, (ast.NameConstant, ast.Compare)):
             return "(%s) ? %s : %s" % (self.visit(node.test), body, or_else)
         else:
-            #self.using_map['PythonIsBoolEx'] = True
             return "py_is_bool(%s) ? %s : %s" % (self.visit(node.test), body, or_else)
 
     @scope
@@ -1116,7 +1081,6 @@ class RB(object):
         if isinstance(node.test, (ast.NameConstant, ast.Compare)):
             self.write("if %s" % self.visit(node.test))
         else:
-            #self.using_map['PythonIsBoolEx'] = True
             self.write("if py_is_bool(%s)" % self.visit(node.test))
 
         self.indent()
@@ -1161,6 +1125,7 @@ class RB(object):
     def visit_withitem(self, node):
         """
         withitem = (expr context_expr, expr? optional_vars)
+        This gets caled from within the `visit_With` visitor.
         """
         func = self.visit(node.context_expr)
         if isinstance(node.context_expr, (ast.Call)):
@@ -1220,33 +1185,6 @@ class RB(object):
             self.dedent()
         self.write("end")
 
-##    # Python 2
-##    @scope
-##    def visit_TryExcept(self, node):
-##        """
-##        TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
-##        """
-##        self.indent()
-##        for stmt in node.body:
-##            self.visit(stmt)
-##        self.dedent()
-##        for handle in node.handlers:
-##            self.visit(handle)
-##
-##    # Python 2
-##    @scope
-##    def visit_TryFinally(self, node):
-##        """
-##        TryFinally(stmt* body, stmt* finalbody)
-##        """
-##        self.write("begin")
-##        self.visit(node.body[0]) # TryExcept
-##        self.write("ensure")
-##        self.indent()
-##        for stmt in node.finalbody:
-##            self.visit(stmt)
-##        self.dedent()
-##        self.write("end")
 
     def visit_Assert(self, node):
         """
@@ -1293,17 +1231,15 @@ class RB(object):
                    mb = Foo::Moduleb_class.new()
         """
         mod_name = node.names[0].name
-        if self._verbose:
-            print("Import mod_name : %s mod_paths : %s" % (mod_name, self.mod_paths))
+
+        self.vprint("Import mod_name : %s mod_paths : %s" % (mod_name, self.mod_paths))
         if mod_name not in self.module_map:
             mod_name = node.names[0].name.replace('.', '/')
             for path, rel_path in self.mod_paths.items():
-                if self._verbose:
-                    print("Import mod_name : %s rel_path : %s" % (mod_name, rel_path))
+                self.vprint("Import mod_name : %s rel_path : %s" % (mod_name, rel_path))
                 if (rel_path.startswith(mod_name + '/') or mod_name.endswith(rel_path)) and os.path.exists(path):
                     self._import_files.append(os.path.join(self._dir_path, rel_path).replace('/', '.'))
-                    if self._verbose:
-                         print("Import self._import_files: %s" % self._import_files)
+                    self.vprint("Import self._import_files: %s" % self._import_files)
                     self.write("require \"./%s\"" % rel_path)
 
             if node.names[0].asname != None:
@@ -1330,7 +1266,7 @@ class RB(object):
         else:
             _mod_name = ''
 
-        for method_key, method_value in six.iteritems(self.module_map[mod_name]):
+        for method_key, method_value in self.module_map[mod_name].items():
             if method_value == None:
                 continue
             if method_key == 'mod_name':
@@ -1341,15 +1277,15 @@ class RB(object):
                     self.write("require \"%s\"" % method_value)
                     self._imports.append(node.names[0].name)
             elif method_key in ('range_map', 'dict_map'):
-                for key, value in six.iteritems(method_value):
+                for key, value in method_value.items():
                     mod_org_method = "%s.%s" % (mod_as_name, key)
                     RB.__dict__[method_key].add(mod_org_method)
             #elif method_key == 'order_inherited_methods':
             #    # no use mod_as_name (Becase Inherited Methods)
-            #    for key, value in six.iteritems(method_value):
+            #    for key, value in method_value.items():
             #        RB.__dict__[method_key][key] = value
             else: # method_key == 'methods_map', etc..
-                for key, value in six.iteritems(method_value): # method_value: {'array':, 'prod': .. }
+                for key, value in method_value.items(): # method_value: {'array':, 'prod': .. }
                     mod_org_method = "%s.%s" % (mod_as_name, key)
                     RB.__dict__[method_key][mod_org_method] = value
                     if isinstance(RB.__dict__[method_key][mod_org_method], dict):
@@ -1447,8 +1383,7 @@ class RB(object):
                        module Alias_classes
                          class Spam
         """
-        if self._verbose:
-            print("mod_paths : %s" % self.mod_paths)
+        self.vprint(f"mod_paths : {self.mod_paths}")
         if node.module != None and \
            node.module not in self.module_map:
             self._import_files.append(node.module)
@@ -1456,11 +1391,10 @@ class RB(object):
             mod_name_i = node.module.replace('.', '/') + '/' + node.names[0].name
             #        from imported.submodules import submodulea
             # => require_relative 'submodules/submodulea'
-            if self._verbose:
-                print("ImportFrom mod_name : %s mod_name_i: %s" % (mod_name , mod_name_i))
+
+            self.vprint("ImportFrom mod_name : %s mod_name_i: %s" % (mod_name , mod_name_i))
             for path, rel_path in self.mod_paths.items():
-                if self._verbose:
-                    print("ImportFrom mod_name : %s rel_path : %s" % (mod_name, rel_path))
+                self.vprint("ImportFrom mod_name : %s rel_path : %s" % (mod_name, rel_path))
                 if node.names[0].name != '*':
                     if path.endswith(mod_name_i + '.py'):
                         self.write("require \"%s\"" % rel_path)
@@ -1469,8 +1403,7 @@ class RB(object):
                             self._import_files.append(os.path.relpath(rel_path, dir_path).replace('/', '.'))
                         else:
                             self._import_files.append(rel_path.replace('/', '.'))
-                        if self._verbose:
-                            print("ImportFrom self._import_files: %s" % self._import_files)
+                        self.vprint("ImportFrom self._import_files: %s" % self._import_files)
                         break
                 if path.endswith(mod_name + '.py'):
                     self.write("require \"%s\"" % rel_path)
@@ -1517,13 +1450,13 @@ class RB(object):
         else:
             _mod_name = ''
 
-        for method_key, method_value in six.iteritems(self.module_map[node.module]):
+        for method_key, method_value in self.module_map[node.module].items():
             if method_key == 'id':
                 if node.module not in self._imports:
                     self.write("require \"%s\"" % method_value)
                     self._imports.append(node.module)
 
-        for method_key, method_value in six.iteritems(self.module_map[node.module]):
+        for method_key, method_value in self.module_map[node.module].items():
             if method_value == None:
                 continue
             if method_key == 'id':
@@ -1532,7 +1465,7 @@ class RB(object):
             if method_key == 'mod_name':
                 self.write("include %s" % method_value)
             else: # method_key == 'methods_map', etc..
-                for key, value in six.iteritems(method_value): # method_value: {'array':, 'prod': .. }
+                for key, value in method_value.items(): # method_value: {'array':, 'prod': .. }
                     if type(RB.__dict__[method_key]) != dict:
                         continue
                     if key not in RB.__dict__[method_key].keys():
@@ -1555,7 +1488,7 @@ class RB(object):
         #return self.visit(node.names.upper)
         self._scope.extend(node.names)
 
-    def visit_Expr(self, node):
+    def visit_Expr(self, node) -> None:
         """
         Expr(expr value)
         """
@@ -1575,14 +1508,14 @@ class RB(object):
         else:
             self.write(val)
 
-    def visit_Pass(self, node):
+    def visit_Pass(self, _node) -> None:
         self.write("# pass")
         #self.write("/* pass */")
 
-    def visit_Break(self, node):
+    def visit_Break(self, _node) -> None:
         self.write("break")
 
-    def visit_Continue(self, node):
+    def visit_Continue(self, _node) -> None:
         self.write("next")
 
     # Python 3
@@ -1593,7 +1526,7 @@ class RB(object):
         """
         return node.arg
 
-    def visit_arguments(self, node):
+    def visit_arguments(self, node) -> str:
         """
         <Python 2> (expr* args, identifier? vararg, identifier? kwarg, expr* defaults)
         <Python 3> (arg* args, arg? vararg, arg* kwonlyargs, expr* kw_defaults, arg? kwarg, expr* defaults)
@@ -1619,7 +1552,7 @@ class RB(object):
             <Crystal>   [1, 2].map{|x| x**2}  """
         return "%s.map{|%s| %s}" % (i, t, self.visit(node.elt))
 
-    def visit_ListComp(self, node):
+    def visit_ListComp(self, node) -> str:
         """
         ListComp(expr elt, comprehension* generators)
         """
@@ -1649,7 +1582,7 @@ class RB(object):
                     (i, t, self.visit(node.generators[0].ifs[0]), t, \
                      self.visit(node.elt))
 
-    def visit_DictComp(self, node):
+    def visit_DictComp(self, node) -> str:
         """
         DictComp(expr key, expr value, comprehension* generators)
         """
@@ -1672,7 +1605,7 @@ class RB(object):
                     (i, t, self.visit(node.generators[0].ifs[0]), t, \
                      self.visit(node.key), self.visit(node.value))
 
-    def visit_SetComp(self, node):
+    def visit_SetComp(self, node) -> str:
         """
         SetComp(expr elt, comprehension* generators)
         """
@@ -1695,7 +1628,7 @@ class RB(object):
                     (i, t, self.visit(node.generators[0].ifs[0]), t, \
                      self.visit(node.elt))
 
-    def visit_Lambda(self, node, style="normal"):
+    def visit_Lambda(self, node, style="normal") -> str:
         """
         Lambda(arguments args, expr body)
         """
@@ -1719,21 +1652,21 @@ class RB(object):
         else:
             return "->(%s) { %s }" % (self.visit(node.args), self.visit(node.body))
 
-    def visit_BoolOp(self, node):
+    def visit_BoolOp(self, node) -> str:
         return (" %s " % self.get_bool_op(node)).join([ "%s" % self.ope_filter(self.visit(val)) for val in node.values ])
 
-    def visit_UnaryOp(self, node):
+    def visit_UnaryOp(self, node) -> str:
         oper = self.get_unary_op(node)
         operand = self.visit(node.operand)
         # If we use a unary op on a simple item (constant/name), then just
         # use the unary op directly.  Otherwise put parenthesis around it
-        simple_operand = isinstance(node.operand, ast.Constant) or isinstance(node.operand, ast.Name)
+        simple_operand = isinstance(node.operand, (ast.Constant, ast.Name))
         if simple_operand:
             return "%s%s" % (oper, operand)
         else:
             return "%s(%s)" % (oper, operand)
 
-    def visit_BinOp(self, node):
+    def visit_BinOp(self, node) -> str:
         if isinstance(node.op, ast.Mod) and isinstance(node.left, ast.Str):
             left = self.visit(node.left)
             # 'b=%(b)0d and c=%(c)d and d=%(d)d' => 'b=%<b>0d and c=%<c>d and d=%<d>d'
@@ -1741,7 +1674,7 @@ class RB(object):
             self._dict_format = True
             right = self.visit(node.right)
             self._dict_format = False
-            return "%s %% %s" % (left, right)
+            return f"{left} % {right}"
         left = self.visit(node.left)
         right = self.visit(node.right)
 
@@ -1756,13 +1689,13 @@ class RB(object):
         return "%s %s %s" % (self.ope_filter(left), self.get_binary_op(node), self.ope_filter(right))
 
     @scope
-    def visit_Compare(self, node):
+    def visit_Compare(self, node) -> str:
         """
         Compare(expr left, cmpop* ops, expr* comparators)
         """
         assert len(node.ops) == len(node.comparators)
 
-        def compare_pair(left, comp, op):
+        def compare_pair(left : str, comp : str, op):
             if (left == '__name__') and (comp == '"__main__"') or \
                (left == '"__main__"') and (comp == '__name__'):
                 """ <Python>  __name__ == '__main__':
@@ -1785,7 +1718,8 @@ class RB(object):
             else:
                 return "%s %s %s" % (left, self.get_comparison_op(op), comp)
 
-        compare_list = []
+        compare_list : List[str] = []
+        comp : str
         for i in range(len(node.ops)):
             if i == 0:
                 left = self.visit(node.left)
@@ -1800,14 +1734,14 @@ class RB(object):
         return ' && '.join(compare_list)
 
     # python 3
-    def visit_Starred(self, node):
+    def visit_Starred(self, node) -> str:
         """
         Starred(expr value, expr_context ctx)
         """
         return "*%s" % self.visit(node.value)
 
     # python 3
-    def visit_NameConstant(self, node):
+    def visit_NameConstant(self, node) -> str:
         """
         NameConstant(singleton value)
         """
@@ -1815,7 +1749,7 @@ class RB(object):
         value = self.name_constant_map[value]
         return value
 
-    def visit_Name(self, node):
+    def visit_Name(self, node) -> str:
         """
         Name(identifier id, expr_context ctx)
         """
@@ -1823,8 +1757,6 @@ class RB(object):
 
         try:
             if self._call:
-                #if id in self.using_key_map:
-                #    self.using_map[self.using_key_map[id]] = True
                 id = self.func_name_map[id]
             else:
                 if id in self.methods_map.keys():
@@ -1843,7 +1775,7 @@ class RB(object):
 
         return id
 
-    def visit_Num(self, node):
+    def visit_Num(self, node) -> str:
         return str(node.n)
 
     # Python 3
@@ -1856,7 +1788,7 @@ class RB(object):
         return node.s
 
     # Python 3
-    def visit_Ellipsis(self, node):
+    def visit_Ellipsis(self, _node):
         """
         Ellipsis
         """
@@ -1864,7 +1796,7 @@ class RB(object):
 
 
     # Python 3.8+ uses ast.Constant instead of ast.NamedConstant
-    def visit_Constant(self, node):
+    def visit_Constant(self, node) -> str:
         value = node.value
 
         if value is True or value is False or value is None:
@@ -1878,7 +1810,7 @@ class RB(object):
         else:
             return repr(node.s)
         
-    def visit_Str(self, node):
+    def visit_Str(self, node) -> str:
         """
         Str(string s)
         """
@@ -1892,7 +1824,7 @@ class RB(object):
             txt = '"' + txt + '"'
         return txt
     
-    def visit_JoinedStr(self, node):
+    def visit_JoinedStr(self, node) -> str:
         txt = ""
         for val in node.values:
             if self.name(val) == "FormattedValue":
@@ -1901,7 +1833,7 @@ class RB(object):
                 txt = txt + self.visit(val)[1:-1]
         return '"' + txt + '"'
 
-    def visit_FormattedValue(self, node):
+    def visit_FormattedValue(self, node) -> str:
         conversion = node.conversion
         if conversion == 97:
             # ascii
@@ -1930,8 +1862,7 @@ class RB(object):
 
         key_l = []
         for i in range(len(key_list)):
-            if self._verbose:
-                print("key_list_check j:%s i:%s rb_args: %s key_list %s" % (j, i, rb_args, key_list))
+            self.vprint("key_list_check j:%s i:%s rb_args: %s key_list %s" % (j, i, rb_args, key_list))
 
             if len(rb_args) <= j:
                 break
@@ -1968,22 +1899,22 @@ class RB(object):
     def get_key_list(self, rb_args, key_lists):
         if rb_args == False:
             return False
-        """ key: - ['stop']                           : len(rb_args) == 1
-                 - ['start', 'stop', 'step', 'dtype'] : len(rb_args) != 1
+        """ 
+        key: - ['stop']                           : len(rb_args) == 1
+        ____ - ['start', 'stop', 'step', 'dtype'] : len(rb_args) != 1
         """
         for key_list in key_lists:
             l = self.key_list_check(key_list, rb_args)
-            if self._verbose:
-                 print("get_key_list len(key_list): %s l: %s" % (len(key_list), l))
+            self.vprint("get_key_list len(key_list): %s l: %s" % (len(key_list), l))
             if l != False:
-                 if self._verbose:
-                     print("get_key_list %s" % l)
-                 return l
+                self.vprint("get_key_list %s" % l)
+                return l
         return False
 
     # method_map : self.methods_map[func] # e.g. numpy[methods_map][prod]
     def get_methods_map(self, method_map, rb_args=False, ins=False):
-        """ [Function convert to Method]
+        """
+        [Function convert to Method]
         <Python> np.prod(shape, axis=1, keepdims=True)
         <Crystal>   Numo::NArray[shape].prod(axis:1, keepdims:true)
         """
@@ -2060,8 +1991,7 @@ class RB(object):
                         value = rb_args[j]
                     args_hash[key] = value
                     i += 1
-            if self._verbose:
-                print("get_methods_map func_key : %s : args_hash %s" % (func_key, args_hash))
+            self.vprint("get_methods_map func_key : %s : args_hash %s" % (func_key, args_hash))
             if key_order_list != False:
                 key_list = key_order_list
             for key in key_list:
@@ -2120,20 +2050,16 @@ class RB(object):
             raise CrystalError("methods_map main function Error : not found args")
 
         if rtn:
-            if self._verbose:
-                print("get_methods_map main_func : %s : rtn %s" % (main_func, rtn))
+            self.vprint("get_methods_map main_func : %s : rtn %s" % (main_func, rtn))
             rtn = rtn % args_hash
-            if self._verbose:
-                print("get_methods_map main_func : %s : rtn %s" % (main_func, rtn))
+            self.vprint("get_methods_map main_func : %s : rtn %s" % (main_func, rtn))
             return "%s%s" % (main_func, rtn)
 
         if bracket:
-            if self._verbose:
-                print("get_methods_map with bracket main_func : %s : m_args %s" % (main_func, m_args))
+            self.vprint("get_methods_map with bracket main_func : %s : m_args %s" % (main_func, m_args))
             return "%s(%s)" % (main_func, ', '.join(m_args))
         else:
-            if self._verbose:
-                print("get_methods_map without bracket main_func : %s : m_args %s" % (main_func, m_args))
+            self.vprint("get_methods_map without bracket main_func : %s : m_args %s" % (main_func, m_args))
             return "%s%s" % (main_func, ', '.join(m_args))
 
     def visit_Call(self, node, crytype = None):
@@ -2155,8 +2081,7 @@ class RB(object):
         if not isinstance(node.func, ast.Call):
             self._call = True
         func = self.visit(node.func)
-        if self._verbose:
-            print("Call func_name[%s]" % func)
+        self.vprint("Call func_name[%s]" % func)
         if not isinstance(node.func, ast.Call):
             self._call = False
 
@@ -2168,8 +2093,7 @@ class RB(object):
                 if base_func in self.methods_map.keys():
                     if 'option' in self.methods_map[base_func].keys():
                         opt = self.methods_map[base_func]['option']
-                        if self._verbose:
-                            print("Call option: %s : %s" % (func, opt))
+                        self.vprint("Call option: %s : %s" % (func, opt))
 
         # dead, no dynamic dispatch with method(:foo)                    
         #if (not func in self.iter_map) and (opt != 'no_method'):
@@ -2179,11 +2103,9 @@ class RB(object):
         #                rb_args[i] = 'method(:%s)' % rb_args[i]
 
         for f in self._import_files:
-            if self._verbose:
-                print("Call func: %s : f %s" % (func, f))
+            self.vprint("Call func: %s : f %s" % (func, f))
             if func.startswith(f):
-                if self._verbose:
-                    print("Call func: %s " % func)
+                self.vprint("Call func: %s " % func)
                 func = func.replace(f + '.', '', 1)
                 """ <Python> imported.moduleb.moduleb_class
                     <Crystal>   Imported::Moduleb::Moduleb_class (base_path_count=0)
@@ -2201,8 +2123,7 @@ class RB(object):
                 base = '::'.join([formatter.capitalize(x) for x in f.split('.')[self._base_path_count:]])
                 if base != '':
                     func = base + '.' + func # was '::'
-                if self._verbose:
-                    print("Call func: %s" % func)
+                self.vprint("Call func: %s" % func)
                 break
 
             f = '.'.join(f.split('.')[self._base_path_count:])
@@ -2211,8 +2132,7 @@ class RB(object):
                 f = x[0].replace(f + '.', '')
 
             if func.startswith(f):
-                if self._verbose:
-                    print("Call mod_paths : func : %s " % func)
+                self.vprint("Call mod_paths : func : %s " % func)
                 func = func.replace(f + '.', '')
                 if func in self._class_names:
                     func = formatter.capitalize(func) + '.new'
@@ -2227,8 +2147,7 @@ class RB(object):
                 base = '::'.join([formatter.capitalize(x) for x in f.split('.')])
                 if base != '':
                     func = base + '::' + func
-                if self._verbose:
-                    print("Call func: %s" % func)
+                self.vprint("Call func: %s" % func)
                 break
 
         """ [Class Instance Create] :
@@ -2265,28 +2184,14 @@ class RB(object):
                 func_arg = self._classes_self_functions_args[ins][method]
 
         if func in self.methods_map_middle.keys():
-            if func == 'hasattr':
-                """ [Function convert to Method]
-                <Python>    hasattr(foo, bar)
-                <Crystal>   foo.instance_variable_defined? :@bar
-                """
-                return "%s.%s :@%s" % (rb_args[0], self.methods_map_middle[func], rb_args[1][1:-1])
-            elif func == 'getattr':
-                #self.using_map[self.using_key_map[func]] = True
-
-                if len(rb_args) == 2:
-                    return "%s.%s(%s)" % (rb_args[0], self.methods_map_middle[func], rb_args[1])
-                else:
-                    return "%s.%s(%s, %s)" % (rb_args[0], self.methods_map_middle[func], rb_args[1], rb_args[2])
+            """ [Function convert to Method]
+            <Python>    isinstance(foo, String)
+            <Crystal>   foo.is_a? String
+            """
+            if len(rb_args) == 1:
+                return "%s.%s" % (rb_args[0], self.methods_map_middle[func])
             else:
-                """ [Function convert to Method]
-                <Python>    isinstance(foo, String)
-                <Crystal>   foo.is_a? String
-                """
-                if len(rb_args) == 1:
-                    return "%s.%s" % (rb_args[0], self.methods_map_middle[func])
-                else:
-                    return "%s.%s %s" % (rb_args[0], self.methods_map_middle[func], rb_args[1])
+                return "%s.%s %s" % (rb_args[0], self.methods_map_middle[func], rb_args[1])
 
         if is_static == False:
             if ((len(rb_args) != 0 ) and (rb_args[0] == 'self')):
@@ -2296,9 +2201,9 @@ class RB(object):
         """ Use keyword argments in function defined case."""
         if func_arg != None:
             if ((len(rb_args) != 0 ) and (rb_args[0] == 'self')):
-               args = rb_args[1:]
+                args = rb_args[1:]
             else:
-               args = rb_args
+                args = rb_args
             for i in range(len(args)):
                 #print("i[%s]:%s" % (i, args[i]))
                 if len(func_arg) <= i:
@@ -2338,22 +2243,21 @@ class RB(object):
             rb_args_s = ", ".join(rb_args)
 
         if isinstance(node.func, ast.Call):
-            return "%s.py_call(%s)" % (func, rb_args_s)
+            return f"{func}.py_call({rb_args_s})"
 
         if func in self.ignore.keys():
-            """ [Function convert to Method]
+            """ 
+            [Function convert to Method]
             <Python>    unittest.main()
             <Crystal>   ""
             """
             return ""
         elif func in self.reverse_methods.keys():
-            """ [Function convert to Method]
+            """ 
+            [Function convert to Method]
             <Python>    float(foo)
             <Crystal>   (foo).to_f
             """
-            #if func in self.using_key_map:
-            #    self.using_map[self.using_key_map[func]] = True
-
             if not isinstance(self.reverse_methods[func],  dict):
                 return "%s.%s" % (self.ope_filter(rb_args_s), self.reverse_methods[func])
             if len(rb_args) == 1:
@@ -2475,8 +2379,8 @@ class RB(object):
                 elif isinstance(node.args[0], ast.Name):
                     return "%s.dup" % rb_args[0]
             else:
-                 self.set_result(2)
-                 raise CrystalError("dict in argument list Error")
+                self.set_result(2)
+                raise CrystalError("dict in argument list Error")
             return "{%s}" % (", ".join(rb_args))
         elif isinstance(node.func, ast.Attribute) and (node.func.attr in self.call_attribute_map):
             """ [Function convert to Method]
@@ -2497,15 +2401,12 @@ class RB(object):
             return "%s.call(%s)" % (func, rb_args_s)
         elif self._class_name:
             """ [Inherited Instance Method] """
-            if self._verbose:
-                print("self._classes_base_classes : %s" % self._classes_base_classes[self._class_name])
+            self.vprint("self._classes_base_classes : %s" % self._classes_base_classes[self._class_name])
             for base_class in self._classes_base_classes[self._class_name]:
                 base_func = "%s.%s" % (base_class, func)
-                if self._verbose:
-                    print("base_func : %s" % base_func)
+                self.vprint("base_func : %s" % base_func)
                 if base_func in self.methods_map.keys():
-                    if self._verbose:
-                        print("Call Inherited Instance Method : %s : base_func %s" % (base_func, rb_args))
+                    self.vprint("Call Inherited Instance Method : %s : base_func %s" % (base_func, rb_args))
                     return self.get_methods_map(self.methods_map[base_func], rb_args, ins)
                 if base_func in self.order_methods_with_bracket.keys():
                     """ [Inherited Instance Method] :
@@ -2523,7 +2424,7 @@ class RB(object):
         else:
             return "%s(%s)" % (func, rb_args_s)
 
-    def visit_Raise(self, node):
+    def visit_Raise(self, node) -> None:
         """
         Raise(expr? exc, expr? cause)
         """
@@ -2541,13 +2442,18 @@ class RB(object):
                 """
                 self.write("raise %s.new(%s)" % (self.visit(node.exc.func), self.visit(node.exc.args[0])))
 
-    def visit_Attribute(self, node):
+    def vprint(self, message : str) -> None:
+        if self._verbose:
+            print("#>> " + message)
+            
+    def visit_Attribute(self, node) -> str:
         """
         Attribute(expr value, identifier attr, expr_context ctx)
         """
         attr = node.attr
-        if self._verbose:
-            print("Attribute attr_name[%s]" % attr)
+        
+        self.vprint(f"Attribute attr_name[{attr}]")
+        
         if (attr != '') and isinstance(node.value, ast.Name) and (node.value.id != 'self'):
             mod_attr = "%s.%s" % (self.visit(node.value), attr)
         else:
@@ -2557,9 +2463,6 @@ class RB(object):
                 """ [Attribute method converter]
                 <Python> fuga.append(bar)
                 <Crystal>   fuga.push(bar)   """
-                #if attr in self.using_key_map:
-                #    self.using_map[self.using_key_map[attr]] = True
-
                 attr = self.attribute_map[attr]
             if mod_attr in self.attribute_map.keys():
                 """ [Attribute method converter]
@@ -2585,8 +2488,6 @@ class RB(object):
                 <Python>    fuga.split(foo,bar)
                 <Crystal>   fuga.split_p(foo,bar)   """
                 if attr in self.attribute_with_arg.keys():
-                    if attr in self.using_key_map:
-                        self.using_map[self.using_key_map[attr]] = True
                     attr = self.attribute_with_arg[attr]
 
         if isinstance(node.value, ast.Call):
@@ -2717,8 +2618,6 @@ class RB(object):
                 return "%s(%s)" % (attr, self.visit(node.value))
         v = self.visit(node.value)
         if attr != '':
-            if attr in self.using_key_map:
-                 self.using_map[self.using_key_map[attr]] = True
             return "%s.%s" % (self.ope_filter(v), attr)
         else:
             return v
@@ -2738,7 +2637,7 @@ class RB(object):
         # not include operator
         return node_value
 
-    def visit_Tuple(self, node):
+    def visit_Tuple(self, node) -> str:
         """
         Tuple(expr* elts, expr_context ctx)
         """
@@ -2757,7 +2656,7 @@ class RB(object):
             self.set_result(2)
             raise CrystalError("tuples in argument list Error")
 
-    def visit_Dict(self, node, crytype = None):
+    def visit_Dict(self, node, crytype = None) -> str:
         """
         Dict(expr* keys, expr* values)
         """
@@ -2777,7 +2676,7 @@ class RB(object):
             return self.empty_hash(node, crytype)
 
 
-    def visit_List(self, node, crytype = None):
+    def visit_List(self, node, crytype = None) -> str:
         """
 	List(expr* elts, expr_context ctx)
         """
@@ -2787,11 +2686,11 @@ class RB(object):
         else:
             return self.empty_list(node, crytype)
 
-    def visit_Set(self, node):
+    def visit_Set(self, node) -> str:
         els = [self.visit(e) for e in node.elts]
         return "Set.new([%s])" % (", ".join(els))
 
-    def visit_ExtSlice(self, node):
+    def visit_ExtSlice(self, node) -> str:
         """
         ExtSlice(slice* dims)
 
@@ -2817,9 +2716,12 @@ class RB(object):
         # suffix function to do stepping
         if node.step:
             suffix = "each_slice(%s).map(&.first)" % self.visit(node.step)
-        else:
-            suffix = None
-        return (rngstr, suffix)
+            return (rngstr, suffix)
+
+        # no step, no suffix.
+        return (rngstr, None)
+
+        
 
     def visit_Slice(self, node) -> str:
         """
@@ -2828,7 +2730,7 @@ class RB(object):
         rangestr, _ = self.process_slice_with_step(node)
         return rangestr
         
-    def visit_Subscript(self, node):
+    def visit_Subscript(self, node) -> str:
         self._is_string_symbol = False
         name = self.visit(node.value)
         if isinstance(node.slice, (ast.Index, ast.Constant, ast.Name)):
@@ -2855,7 +2757,7 @@ class RB(object):
         return self.visit(node.value)
         #return "[%s]" % (self.visit(node.value))
 
-    def visit_Yield(self, node):
+    def visit_Yield(self, node) -> str:
         """
         <Python> def func():
                      yield 1
@@ -2904,7 +2806,7 @@ class RB(object):
             return "{}"
         
 
-def convert_py2cr(s, dir_path, path='', base_path_count=0, modules=[], mod_paths={}, no_stop=False, verbose=False):
+def convert_py2cr(s : str, dir_path : str , path : str = '', base_path_count : int = 0, modules : List[str] = None, mod_paths : Dict[str, str] = None, no_stop : bool = False, verbose : bool = False):
     """
     Takes Python code as a string 's' and converts this to Crystal.
 
@@ -2914,7 +2816,9 @@ def convert_py2cr(s, dir_path, path='', base_path_count=0, modules=[], mod_paths
     'x[3..-1]'
 
     """
-
+    modules = modules or []
+    mod_paths = mod_paths or {}
+    
     # get modules information
     v = RB(path, dir_path, base_path_count, mod_paths, verbose=verbose)
     v.mode(2)
@@ -2934,18 +2838,19 @@ def convert_py2cr(s, dir_path, path='', base_path_count=0, modules=[], mod_paths
     data = v.read()
     v.clear() # clear self.__buffer
 
-    v.set_using()
     header = v.read()
 
     return (v.get_result(), header, data)
 
-def convert_py2cr_write(filename, base_path_count=0, subfilenames=[], base_path=None, require=None, output=None, force=None, no_stop=False, verbose=False):
+def convert_py2cr_write(filename, base_path_count=0, subfilenames=None, base_path=None, require=None, output=None, force=None, no_stop=False, verbose=False):
+    subfilenames = subfilenames or []
+    
     if output:
         if not force:
             if os.path.exists(output):
                 sys.stderr.write('Skip : %s already exists.\n' % output)
                 return 3
-        output = open(output, "w")
+        output = open(output, "w", encoding="utf-8")
     else:
         output = sys.stdout
 
@@ -2956,9 +2861,9 @@ def convert_py2cr_write(filename, base_path_count=0, subfilenames=[], base_path=
     mod_paths = OrderedDict()
     for sf in subfilenames:
         rel_path = os.path.relpath(sf, os.path.dirname(filename))
-        name_path, ext = os.path.splitext(rel_path)
+        name_path, _ext = os.path.splitext(rel_path)
         mod_paths[sf] = name_path
-        with open(sf, 'r') as f:
+        with open(sf, 'r', encoding="utf-8") as f:
             mods.append(f.read()) #unsafe for large files!
     name_path = ''
     dir_path = ''
@@ -2968,75 +2873,78 @@ def convert_py2cr_write(filename, base_path_count=0, subfilenames=[], base_path=
         dir_path = os.path.relpath(os.path.dirname(filename), base_path)
         if dir_path != '.':
             rel_path = os.path.relpath(filename, base_path)
-            name_path, ext = os.path.splitext(rel_path)
+            name_path, _ext = os.path.splitext(rel_path)
         else:
             dir_path = ''
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding="utf-8") as f:
         s = f.read() # unsafe for large files!
         rtn, header, data = convert_py2cr(s, dir_path, name_path, base_path_count, mods, mod_paths, no_stop=no_stop, verbose=verbose)
         if require:
             output.write(header)
         output.write(data)
-    output.close
+
+    # close the filehandle if it isnt stdout.
+    if output is not sys.stdout:
+        output.close()
     return rtn
 
-def main():
-    parser = OptionParser(usage="%prog [options] filename.py\n" \
-        + "    or %prog [-w [-f]] [-(r|b)] [-v] filename.py\n" \
-        + "    or %prog -p foo/bar/ -m [-w [-f]] [-(r|b)] [-v] foo/bar/filename.py\n" \
-        + "    or %prog -l lib_store_directory/ [-f]",
+def main() -> None:
+    parser = argparse.ArgumentParser(usage="%(prog)s [options] filename.py\n" \
+        + "    or %(prog)s [-w [-f]] [-(r|b)] [-v] filename.py\n" \
+        + "    or %(prog)s -p foo/bar/ -m [-w [-f]] [-(r|b)] [-v] foo/bar/filename.py\n" \
+        + "    or %(prog)s -l lib_store_directory/ [-f]",
                           description="Python to Crystal compiler.")
 
-    parser.add_option("-w", "--write",
+    parser.add_argument("-w", "--write",
                       action="store_true",
                       dest="output",
                       help="write output *.py => *.cr")
 
-    parser.add_option("-f", "--force",
+    parser.add_argument("-f", "--force",
                       action="store_true",
                       dest="force",
                       default=False,
                       help="force write output to OUTPUT")
 
-    parser.add_option("-v", "--verbose",
+    parser.add_argument("-v", "--verbose",
                       action="store_true",
                       dest="verbose",
                       default=False,
                       help="verbose option to get more information.")
 
-    parser.add_option("-s", "--silent",
+    parser.add_argument("-s", "--silent",
                       action="store_true",
                       dest="silent",
                       default=False,
                       help="silent option that does not output detailed information.")
 
-    parser.add_option("-r", "--include-require",
+    parser.add_argument("-r", "--include-require",
                       action="store_true",
                       dest="include_require",
                       default=True,
                       help="require py2cr library in the output")
 
-    parser.add_option("-p", "--base-path",
+    parser.add_argument("-p", "--base-path",
                       action="store",
                       dest="base_path",
                       default=False,
                       help="set default module target path")
 
-    parser.add_option("-c", "--base-path-count",
+    parser.add_argument("-c", "--base-path-count",
                       action="store",
                       dest="base_path_count",
-                      type="int",
+                      type=int,
                       default=0,
                       help="set default module target path nest count")
 
-    parser.add_option("-m", "--module",
+    parser.add_argument("-m", "--module",
                       action="store_true",
                       dest="mod",
                       default=False,
                       help="convert all local import module files of specified Python file. *.py => *.cr")
 
-    options, args = parser.parse_args()
-
+    options, args = parser.parse_known_args()
+    
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)
@@ -3056,11 +2964,11 @@ def main():
     mods_all = {}
 
     # py_path       : python file path
-    def get_mod_path(py_path : str):
+    def get_mod_path(py_path : str) -> None:
         results = []
         dir_path = os.path.dirname(py_path) if os.path.dirname(py_path) else '.'
         dir_path = os.path.relpath(dir_path, base_dir_path)
-        with open(py_path, 'r') as f:
+        with open(py_path, 'r', encoding="utf-8") as f:
             text = f.read()
             results_f = re.findall(r"^from +([.\w]+) +import +([*\w]+)", text, re.M)
             for res_f in results_f:
@@ -3139,7 +3047,6 @@ def main():
             if not sf in mods.keys():
                 get_mod_path(sf)
                 mods_all[py_path].extend(mods[sf])
-        return
 
     # Get all the local import module file names of the target python file
     get_mod_path(filename)
@@ -3152,18 +3059,19 @@ def main():
     # -p tests/modules "tests/modules/modules/moda.py" > "tests/modules/modules/moda.cr"
     if options.verbose:
         for py_path, subfilenames in mods_all.items():
-            print("mods_all[%s] : %s" % (py_path, subfilenames))
+            print(f"mods_all[{py_path}] : {subfilenames}")
 
     for py_path, subfilenames in mods_all.items():
         if not options.mod:
             if py_path != filename:
                 continue
+
         subfilenames = set(subfilenames)
+
+        output : Optional[str] = None
         if options.output:
-            name_path, ext = os.path.splitext(py_path)
+            name_path, _ext = os.path.splitext(py_path)
             output = name_path + '.cr'
-        else:
-            output = None
 
         if options.verbose:
             print('Try  : ' + py_path + ' : ')
@@ -3178,13 +3086,13 @@ def main():
                 else:
                     print('Try  : ' + py_path + ' : ', end='')
             if options.mod or output:
-                if 0 == rtn:
+                if rtn == 0:
                     print('[OK]')
-                elif 1 == rtn:
+                elif rtn == 1:
                     print('[Warning]')
-                elif 2 == rtn:
+                elif rtn == 2:
                     print('[Error]')
-                elif 3 == rtn:
+                elif rtn == 3:
                     print('[Skip]')
                 else:
                     print('[Not Defined]')
