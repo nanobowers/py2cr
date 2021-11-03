@@ -2342,90 +2342,6 @@ class RB(object):
             <Crystal>   File.dirname(name)
             """
             return "%s(%s)" % (self.order_methods_with_bracket[func], ','.join(cry_args))
-#        elif func in self.iter_map:
-#            """ [map] """
-#            if isinstance(node.args[0], ast.Lambda):
-#                """ 
-#                [Lambda Call with map] :
-#                <Python>    map(lambda x: x**2, [1,2])
-#                <Crystal>   [1, 2].map{|x| x**2}
-#                """
-#                anonymous_func = self.visit_Lambda(node.args[0], style="block")
-#                return "%s.%s %s" % (cry_args[1], func, anonymous_func)
-#            else:
-#                """ 
-#                <Python>    map(foo, [1, 2])
-#                <Crystal>   [1, 2].map{|_| foo(_) } 
-#                """
-#                return "%s.%s{|v| %s(v)}" % (cry_args[1], func, cry_args[0])
-#
-#        elif func in self.reduce_map:
-#            if isinstance(node.args[0], ast.Lambda):
-#                """ reduce(lambda x: x**2, alist) """
-#                block = self.visit_Lambda(node.args[0], style="block")
-#            else:
-#                """ reduce(foo, alist) """
-#                block = "{ |*args| %s(*args) }" % cry_args[0]
-#                
-#            if len(cry_args) > 2:
-#                """
-#                <Python>   reduce(foo, alist, 10)
-#                <Crystal>  alist.reduce(10) { |*args| foo(*args) }
-#                """
-#                return "%s.%s(%s) %s" % (cry_args[1], func, cry_args[2], block)
-#            else:
-#                """
-#                <Python>   reduce(foo, alist)
-#                <Crystal>  alist.reduce { |*args| foo(*args) }
-#                """
-#                return "%s.%s %s" % (cry_args[1], func, block)
-#        elif func in self.tuple_map:
-#            """ 
-#            [tuple]
-#            <Python>    tuple(range(3))
-#            <Crystal>   3.times.to_a
-#            """
-#            if len(node.args) == 0:
-#                return "Tuple.new()"
-#            elif (len(node.args) == 1) and isinstance(node.args[0], ast.Str):
-#                return "%s.split(\"\")" % (cry_args_s)
-#            else:
-#                return "%s.to_a" % (cry_args_s)
-#        elif func in self.list_map:
-#            """ 
-#            [list]
-#            <Python>    list(range(3))
-#            <Crystal>   3.times.to_a
-#            """
-#            if len(node.args) == 0:
-#                return self.empty_list(node, crytype)
-#            elif (len(node.args) == 1) and isinstance(node.args[0], ast.Str):
-#                return "%s.split(\"\")" % (cry_args_s)
-#            else:
-#                return "%s.to_a" % (cry_args_s)
-#        elif func in self.dict_map:
-#            """ 
-#            [dict]
-#            <Python>    dict([('foo', 1), ('bar', 2)])
-#            <Crystal>   {'foo' => 1, 'bar' => 2}
-#            """
-#            if len(node.args) == 0:
-#                return self.empty_hash(node, crytype)
-#            elif len(node.args) == 1:
-#                if isinstance(node.args[0], ast.List):
-#                    cry_args = []
-#                    for elt in node.args[0].elts:
-#                        self._tuple_type = '=>'
-#                        cry_args.append(self.visit(elt))
-#                        self._tuple_type = '[]'
-#                elif isinstance(node.args[0], ast.Dict):
-#                    return cry_args[0]
-#                elif isinstance(node.args[0], ast.Name):
-#                    return "%s.dup" % cry_args[0]
-#            else:
-#                self.set_result(2)
-#                raise CrystalError("dict in argument list Error")
-#            return "{%s}" % (", ".join(cry_args))
         elif isinstance(node.func, ast.Attribute) and (node.func.attr in self.call_attribute_map):
             """ [Function convert to Method]
             <Python>    ' '.join(['a', 'b'])
@@ -2503,15 +2419,17 @@ class RB(object):
             
         if not (isinstance(node.value, ast.Name) and (node.value.id == 'self')):
             renamed_attr = registry.attr_lookup(attr_modname, attr)
-            
+
+            # Pre-map the attributes (e.g write => print)
+            if attr in self.attribute_map.keys():
+                """ [Attribute method converter]
+                <Python>    fuga.append(bar)
+                <Crystal>   fuga.push(bar)   """
+                attr = self.attribute_map[attr]
+
             if renamed_attr:
                 return renamed_attr
             
-#            if attr in self.attribute_map.keys():
-#                """ [Attribute method converter]
-#                <Python> fuga.append(bar)
-#                <Crystal>   fuga.push(bar)   """
-#                attr = self.attribute_map[attr]
 #            if mod_attr in self.attribute_map.keys():
 #                """ [Attribute method converter]
 #                <Python> six.PY3 # True
