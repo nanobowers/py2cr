@@ -2,13 +2,10 @@
 import numpy as np
 
 def print_matrix(data):
-    data_i = []
-    for i in list(data):
-        data_j = []
-        for j in i:
-            data_j.append(int("%d" % j))
-        data_i.append(data_j)
-    print(data_i)
+    print('[')
+    for d2 in list(data):
+        print("  " + ", ".join(list([str(int(i)) for i in d2])))
+    print(']')
 
 x = np.arange(6)
 x = x.reshape(2, 3)

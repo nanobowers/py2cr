@@ -1,10 +1,7 @@
 import numpy as np
 
 def print_array(data):
-    datas = []
-    for i in data:
-        datas.append(i)
-    print(datas)
+    print(" ".join(list(["%d" % i for i in data])))
 
 x = np.array([1, 2, 3])
 print_array(x)

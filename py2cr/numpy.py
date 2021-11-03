@@ -27,7 +27,10 @@ class Numcr:
             
         for kw in funcdb.node.keywords:
             if kw.arg == "dtype":
-                dtype_value = funcdb.crystal_visitor.visit(kw.value)
+                if isinstance(kw.value, ast.Str):
+                    dtype_value = kw.value.s # unquoted str-value
+                else:
+                    dtype_value = funcdb.crystal_visitor.visit(kw.value)
                 # remove preceding np./numpy. to get dtype for lookup
                 dtype_value_hack = re.sub(r".*\.", '', dtype_value)
                 templatetype = Numcr.typemap[dtype_value_hack]
@@ -50,6 +53,9 @@ class Numpy(CrystalTranslator):
 
     def arange(funcdb):
         return Numcr._tensor("range", funcdb)
+
+    def array(funcdb):
+        return Numcr._tensor("from_array", funcdb)
     
     def ones(funcdb):
         return Numcr._tensor("ones", funcdb)
@@ -62,6 +68,36 @@ class Numpy(CrystalTranslator):
 
     def zeros_like(funcdb):
         return Numcr._tensor("zeros_like", funcdb)
+
+    def linspace(funcdb):
+        return Numcr._tensor("linear_space", funcdb)
+
+    # TRIG FUNCTIONS
+    def cos(funcdb):
+        return funcdb.wrap_class_method("Num", "cos")
+    def sin(funcdb):
+        return funcdb.wrap_class_method("Num", "sin")
+    def tan(funcdb):
+        return funcdb.wrap_class_method("Num", "tan")
+    def arccos(funcdb):
+        return funcdb.wrap_class_method("Num", "acos")
+    def arcsin(funcdb):
+        return funcdb.wrap_class_method("Num", "asin")
+    def arctan(funcdb):
+        return funcdb.wrap_class_method("Num", "atan")
+
+    def cosh(funcdb):
+        return funcdb.wrap_class_method("Num", "cosh")
+    def sinh(funcdb):
+        return funcdb.wrap_class_method("Num", "sinh")
+    def tanh(funcdb):
+        return funcdb.wrap_class_method("Num", "tanh")
+    def arccosh(funcdb):
+        return funcdb.wrap_class_method("Num", "acosh")
+    def arcsinh(funcdb):
+        return funcdb.wrap_class_method("Num", "asinh")
+    def arctanh(funcdb):
+        return funcdb.wrap_class_method("Num", "atanh")
 
     
 class Collections(CrystalTranslator):

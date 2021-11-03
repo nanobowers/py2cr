@@ -1,5 +1,5 @@
 name: py2cr
-version: 0.0.2
+version: 0.0.1
 
 authors:
   - Ben Bowers <nanobowers@gmail.com>
@@ -8,3 +8,6 @@ crystal: 1.1.1
 
 license: MIT
     
+dependencies:
+  num:
+    github: crystal-data/num.cr

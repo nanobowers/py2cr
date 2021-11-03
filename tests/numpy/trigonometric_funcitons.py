@@ -1,20 +1,19 @@
 # coding: utf-8
 import numpy as np
 
+def aryfmt(i):
+    if float("%.3f" % abs(i)) == 0:
+        return "%.3f" % abs(i)
+    return "%.3f" % i
+
 def print_array(data):
-    datas = []
-    for i in data:
-        if float("%.3f" % abs(i)) == 0:
-            datas.append(float("%.3f" % abs(i)))
-        else:
-            datas.append(float("%.3f" % i))
-    print(datas)
+    print(" ".join(list([aryfmt(i) for i in data])))
 
 """ Trigonometric functions """
 
-x1 = np.arange(0, 6, 0.1)
-x2 = np.arange(-0.9, 1, 0.1)
-x3 = np.arange(1, 6, 0.1)
+x1 = np.arange(0, 6, 0.1, dtype=np.float64)
+x2 = np.arange(-0.9, 1, 0.1, dtype=np.float64)
+x3 = np.arange(1, 6, 0.1, dtype=np.float64)
 
 y1 = np.sin(x1)
 y2 = np.cos(x1)

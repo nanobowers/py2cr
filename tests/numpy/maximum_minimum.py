@@ -1,14 +1,12 @@
 # coding: utf-8
 import numpy as np
 
+def aryfmt(i):
+    if float("%.3f" % abs(i)) == 0:
+        return "%.3f" % abs(i)
+    return "%.3f" % i
 def print_array(data):
-    datas = []
-    for i in data:
-        if float("%.3f" % abs(i)) == 0:
-            datas.append(float("%.3f" % abs(i)))
-        else:
-            datas.append(float("%.3f" % i))
-    print(datas)
+    print(" ".join(list([aryfmt(i) for i in data])))
 
 x = np.arange(-5.0, 5.0, 0.1)
 print(len(x))

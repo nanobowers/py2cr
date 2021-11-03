@@ -1,18 +1,18 @@
 import numpy as np
 
+def aryfmt(i):
+    if float("%.3f" % abs(i)) == 0:
+        return "%.3f" % abs(i)
+    return "%.3f" % i
+
 def print_array(data):
-    datas = []
-    for i in data:
-        datas.append(i)
-    print(datas)
+    print(" ".join(list([aryfmt(i) for i in data])))
+
 def print_matrix(data):
-    data_i = []
-    for i in list(data):
-        data_j = []
-        for j in i:
-            data_j.append(j)
-        data_i.append(data_j)
-    print(data_i)
+    print('[')
+    for d2 in list(data):
+        print("  " + ", ".join(list([str(int(i)) for i in d2])))
+    print(']')
 
 x = np.array([[1, 1], [2, 2], [3, 3]], dtype=np.int8)
 """[[1, 1], [2, 2], [3, 3]] => [1, 5, 1, 2, 2, 3, 3]"""

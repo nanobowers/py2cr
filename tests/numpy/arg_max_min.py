@@ -1,20 +1,14 @@
 # coding: utf-8
 import numpy as np
 
-def print_matrix(data):
-    data_i = []
-    for i in list(data):
-        data_j = []
-        for j in i:
-            data_j.append(int("%d" % j))
-        data_i.append(data_j)
-    print(data_i)
-
 def print_array(data):
-    datas = []
-    for i in data:
-        datas.append(int("%d" % i))
-    print(datas)
+    print(" ".join(list(["%d" % i for i in data])))
+
+def print_matrix(data):
+    print('[')
+    for d2 in list(data):
+        print("  " + ", ".join(list([str(int(i)) for i in d2])))
+    print(']')
 
 a = np.asarray([[1,2,3],[4,5,6]])
 print_matrix(a)

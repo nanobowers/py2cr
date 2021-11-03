@@ -2126,6 +2126,15 @@ class RB(object):
             self.vprint("get_methods_map without bracket main_func : %s : m_args %s" % (main_func, m_args))
             return "%s%s" % (main_func, ', '.join(m_args))
 
+    def visit_keyword(self, node):
+        """ keyword in a function call 
+        <Python> run_func(kw="value")
+        <Crystal run_func(kw: "value")
+        """
+        keyname = node.arg
+        kwvalue = self.visit(node.value)
+        return f"{keyname}: {kwvalue}"
+        
     def visit_Call(self, node, crytype = None):
         """
         Call(expr func, expr* args, keyword* keywords)
@@ -2290,9 +2299,9 @@ class RB(object):
             <Crystal>   foo(1, fuga: 2)
             """
             for kw in node.keywords:
-                cry_args.append("%s: %s" % (kw.arg, self.visit(kw.value)))
+                cry_args.append(self.visit(kw))
                 self._conv = False
-                cry_args_base.append("%s: %s" % (kw.arg, self.visit(kw.value)))
+                cry_args_base.append(self.visit(kw))
                 self._conv = True
         if len(cry_args) == 0:
             cry_args_s = ''

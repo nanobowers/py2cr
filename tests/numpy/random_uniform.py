@@ -1,13 +1,10 @@
 import numpy as np
 
 def print_matrix(data):
-    data_i = []
-    for i in list(data):
-        data_j = []
-        for j in i:
-            data_j.append(j)
-        data_i.append(data_j)
-    print(data_i)
+    print('[')
+    for d2 in list(data):
+        print("  " + ", ".join(list([str(int(i)) for i in d2])))
+    print(']')
 
 x = np.random.uniform(-1, 1, (3,2))
 
