@@ -19,14 +19,17 @@ def print_array(data):
             datas.append(float("%.3f" % i))
     print(datas)
 
-x = np.ones(5)
-print_array(x)
+x1 = np.ones(5, dtype=np.int8)
+print_array(x1)
 
-x = np.zeros(5)
-print_array(x)
+x2 = np.ones(5)
+print_array(x2)
 
-x = np.full((2, 2), 1)
-print_matrix(x)
+x3 = np.zeros(5)
+print_array(x3)
+
+x4 = np.full((2, 2), 1)
+print_matrix(x4)
 
 #x = np.empty([2, 2])
 #print(list(x.shape))

@@ -14,17 +14,16 @@ import copy
 from collections import OrderedDict
 from pprint import pprint
 
-import yaml
-
 # local code
 from . import formatter
 from . import types
 
-# translators
+# function/attribute "translators"
 from .translator import *
 from . import pymain
 from . import pyos
 from . import pysys
+from . import pysix
 from . import numpy
 
 registry = TranslatorRegistry()
@@ -90,15 +89,6 @@ class FuncCall:
                               
 class RB(object):
 
-    module_map = {} # : Dict[str,str] = registry.module_to_require_map()
-    
-    
-    yaml_files = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'modules/*.yaml')
-    for filename in glob.glob(yaml_files):
-        with open(filename, 'r', encoding="utf-8") as f:
-            module_map.update(yaml.safe_load(f))
-
-
     # python 3
     name_constant_map = {
         True  : 'true',
@@ -112,7 +102,6 @@ class RB(object):
         'open'  : 'File.open',
     }
     name_map = {
-        #'self'   : 'this',
         'True'  : 'true',  # python 2.x
         'False' : 'false', # python 2.x
         'None'  : 'nil',   # python 2.x
@@ -182,8 +171,10 @@ class RB(object):
         'hasattr'    : 'instance_variable_defined?',
         'getattr': 'py_getattr',
     }
+
     # np.array([x1, x2]) => Numo::NArray[x1, x2]
     order_methods_with_bracket : Dict[str, str] = {}
+    
     methods_map : Dict[str, str] = {}
     ignore : Dict[str, str] = {}
     mod_class_name : Dict[str, str] = {}
@@ -296,10 +287,9 @@ class RB(object):
 
     def maybewarn(self, message : str) -> None:
         if self._mode == OperationMode.WARNING:
-            self.set_result(1)
+            self.set_result(ResultStatus.INCLUDE_WARNING)
             sys.stderr.write("Warning : " + message + "\n")
 
-    
     # Error Stop Mode
     def mode(self, mode):
         self._mode = mode
@@ -358,8 +348,10 @@ class RB(object):
         self._dict_format = False # True : Symbol ":", False : String "=>"
 
         self._is_string_symbol = False # True : ':foo' , False : '"foo"'
+        
         # This lists all variables in the local scope:
         self._scope = []
+        
         #All calls to names within _class_names will be preceded by 'new'
         # Python original class name
         self._class_names = set()
@@ -401,6 +393,9 @@ class RB(object):
         # This lists all lambda functions:
         self._lambda_functions = []
 
+        # This is a mapping of module-name when "import foo as bar" is used.
+        self._module_aliases : Dict[str,str] = {}
+        
         self._import_files = []
         self._imports = []
         self._call = False
@@ -437,7 +432,7 @@ class RB(object):
             visitor = getattr(self, 'visit_' + self.name(node))
         except AttributeError:
             if self._mode == OperationMode.STOP:
-                self.set_result(2)
+                self.set_result(ResultStatus.INCLUDE_ERROR)
                 raise CrystalError("Syntax not supported (%s line:%d col:%d)" % (node, node.lineno, node.col_offset))
             else:
                 self.maybewarn("Syntax not supported (%s line:%d col:%d)" % (node, node.lineno, node.col_offset))
@@ -1036,7 +1031,7 @@ class RB(object):
         For(expr target, expr iter, stmt* body, stmt* orelse)
         """
         if not isinstance(node.target, (ast.Name,ast.Tuple, ast.List)):
-            self.set_result(2)
+            self.set_result(ResultStatus.INCLUDE_ERROR)
             raise CrystalError("Argument decomposition in 'for' loop is not supported")
         #if isinstance(node.target, ast.Tuple):
 
@@ -1283,17 +1278,20 @@ class RB(object):
                    mb = Foo::Moduleb_class.new()
         """
         mod_name = node.names[0].name
-        self.vprint(f"%%%MODULE_MAP_KEYS: {self.module_map.keys()}")
-        self.vprint(f"Import mod_name: {mod_name} mod_paths : {self.mod_paths}")
-        #if mod_name not in self.module_map:
+
+
+
         if registry.require_lookup_or_none(mod_name):
+
+            self.vprint(f"Import mod_name={mod_name} mod_paths={self.mod_paths} **found-in-registry**")
+            
             mod_name = node.names[0].name.replace('.', '/')
             for path, rel_path in self.mod_paths.items():
-                self.vprint("Import mod_name : %s rel_path : %s" % (mod_name, rel_path))
+                self.vprint("Import mod_name=%s rel_path=%s" % (mod_name, rel_path))
                 if (rel_path.startswith(mod_name + '/') or mod_name.endswith(rel_path)) and os.path.exists(path):
                     self._import_files.append(os.path.join(self._dir_path, rel_path).replace('/', '.'))
                     self.vprint("Import self._import_files: %s" % self._import_files)
-                    self.write("require \"./%s\"" % rel_path)
+                    self.write(f'require "./{rel_path}"')
 
             if node.names[0].asname != None:
                 if node.names[0].name in self._import_files:
@@ -1307,13 +1305,17 @@ class RB(object):
                 #    self._classes_self_functions_args[node.names[0].asname] = self._classes_self_functions_args[node.names[0].name]
                 #else:
                 #    self.write("alias %s %s" % (node.names[0].asname, node.names[0].name))
-            return
+
+                mod_as_name = node.names[0].asname or mod_name
+                self.vprint(f"Aliasing {mod_as_name} to {mod_name}")
+                self._module_aliases[mod_as_name] = mod_name
+                
+            #return
 
         #>> module foo as otherfoo
-        mod_as_name = node.names[0].asname or mod_name
 
         #>> get module's crystal name alias
-        #_mod_name = self.module_map[mod_name].get('mod_name', '')
+
         require_name = registry.require_lookup(mod_name)
 
         
@@ -1440,7 +1442,7 @@ class RB(object):
                          class Spam
         """
         self.vprint(f"mod_paths : {self.mod_paths}")
-        #if node.module != None and node.module not in self.module_map:
+
         if node.module is not None and not registry.require_lookup_or_none(node.module):
 
             require_name = registry.require_lookup(node.module)
@@ -1496,11 +1498,7 @@ class RB(object):
               func= Name(id='array', ctx= Load()),
               args=[ List(elts=[ Num(n=1), Num(n=1)], ctx= Load())], keywords=[]))
         """
-        # Not Use?
-        #if node.module == None:
-        #    mod_name = node.names[0].name
-        #else:
-        #    mod_name = self.module_map[node.module]
+
 
         require_name = registry.require_lookup(node.module)
 
@@ -2084,7 +2082,7 @@ class RB(object):
                     elif self._verbose:
                         print("get_methods_map key : %s not match method_map['val'][key] %s" % (key, method_map['val'][key]))
             if len(args_hash) == 0:
-                self.set_result(2)
+                self.set_result(ResultStatus.INCLUDE_ERROR)
                 raise CrystalError("methods_map default argument Error : not found args")
 
             if 'main_data_key' in method_map:
@@ -2112,7 +2110,7 @@ class RB(object):
                     main_func = method_map['main_func_hash_nm']
             main_func = method_map['val'][func_key] % {'mod': mod, 'data': main_data, 'main_func': main_func}
         if main_func == '':
-            self.set_result(2)
+            self.set_result(ResultStatus.INCLUDE_ERROR)
             raise CrystalError("methods_map main function Error : not found args")
 
         if rtn:
@@ -2308,8 +2306,15 @@ class RB(object):
         if isinstance(node.func, ast.Call):
             return f"{func}.py_call({cry_args_s})"
 
-        self.vprint(f"looking up: [{funcdb.func_module} {funcdb.func_name}]")
-        lkfunc = registry.func_lookup(funcdb.func_module, funcdb.func_name)
+
+        func_modulename = funcdb.func_module
+
+        # de-alias the modulename to look it up for translation
+        dealias_modulename = self._module_aliases.get(func_modulename, func_modulename)
+        self.vprint(f"looking up: module({func_modulename}=>{dealias_modulename}) func=({funcdb.func_name})")
+
+
+        lkfunc = registry.func_lookup(dealias_modulename, funcdb.func_name)
         if lkfunc:
             return lkfunc(funcdb)
 
@@ -2621,7 +2626,7 @@ class RB(object):
         elif self._tuple_type == '':
             return "%s" % (", ".join(els))
         else:
-            self.set_result(2)
+            self.set_result(ResultStatus.INCLUDE_ERROR)
             raise CrystalError("tuples in argument list Error")
 
     def visit_Dict(self, node, crytype = None) -> str:
