@@ -16,6 +16,19 @@ class Numcr:
         "uint":   "UInt64",
         "float32": "Float32",
         "float64": "Float64",
+        # self-mapping in case prop was already mapped somehow
+        "Int8": "Int8",
+        "Int16": "Int8",
+        "Int32": "Int32",
+        "Int64": "Int64",
+        "UInt8": "UInt8",
+        "UInt16": "UInt8",
+        "UInt32": "UInt32",
+        "UInt64": "UInt64",
+        "Float32": "Float32",
+        "Float64": "Float64",
+        # ndarray map to Tensor
+        "ndarray": "Tensor",
     }
     
     @staticmethod
@@ -47,9 +60,29 @@ class Numcr:
         return f"Tensor({templatetype}).{function}({arglist})"
 
 class Numpy(CrystalTranslator):
+
+    attribute_map = {}
+    attribute_map.update(Numcr.typemap)
+    
     def __init__(self):
         self.python_module_name = "numpy"
         self.crystal_require = "num"
+
+    def asarray(funcdb):
+        """
+        <Python> np.asarray(x)
+        <Crystal> x.to_a
+
+        <Python> np.asarray([[0,1],[1,2]])
+        <Crystal> Tensor(Int32).new([[0,1],[1,2])).to_a
+        """
+        args = funcdb.node.args
+        firstarg = args[0]
+        if isinstance(firstarg, ast.Name):
+            obj = funcdb.crystal_visitor.visit(firstarg)
+        else:
+            obj = Numcr._tensor('new', funcdb)
+        return f"{obj}.to_a"
 
     def arange(funcdb):
         return Numcr._tensor("range", funcdb)
@@ -98,7 +131,36 @@ class Numpy(CrystalTranslator):
         return funcdb.wrap_class_method("Num", "asinh")
     def arctanh(funcdb):
         return funcdb.wrap_class_method("Num", "atanh")
+    ## non-trig
+    def all(funcdb):
+        return funcdb.wrap_class_method("Num", "all")
+    def any(funcdb):
+        return funcdb.wrap_class_method("Num", "any")
+    def argmax(funcdb):
+        return funcdb.wrap_class_method("Num", "argmax")
+    def argmin(funcdb):
+        return funcdb.wrap_class_method("Num", "argmin")
+    def sqrt(funcdb):
+        return funcdb.wrap_class_method("Num", "sqrt")
+    def sum(funcdb):
+        return funcdb.wrap_class_method("Num", "sum")
+    def asum(funcdb):
+        return funcdb.wrap_class_method("Num", "asum")
+    def prod(funcdb):
+        return funcdb.wrap_class_method("Num", "prod")
 
+    def max(funcdb):
+        return funcdb.wrap_class_method("Num", "max")
+    def min(funcdb):
+        return funcdb.wrap_class_method("Num", "min")
+    def amax(funcdb):
+        return funcdb.wrap_class_method("Num", "amax")
+    def amin(funcdb):
+        return funcdb.wrap_class_method("Num", "amin")
+    def argmax(funcdb):
+        return funcdb.wrap_class_method("Num", "argmax")
+    def argmin(funcdb):
+        return funcdb.wrap_class_method("Num", "argmin")
     
 class Collections(CrystalTranslator):
     def __init__(self):

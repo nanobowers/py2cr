@@ -19,6 +19,7 @@ print_matrix(z)
 """
 max
 """
+print("max()")
 y = x.max()
 print(y)
 y = np.max([2, 3, 4])
@@ -27,24 +28,28 @@ print(y)
 """
 amax
 """
+print("amax()")
 y = np.amax([2, 3, 4])
 print(y)
 
 """
 max axis=0
 """
+print("max(axis=0)")
 y = z.max(axis=0)
 print_array(y)
 
 """
 max axis=1
 """
+print("max(axis=1)")
 y = np.max([[2,3,6],[3,4,5]], axis=1)
 print_array(y)
 
 """
 min
 """
+print("min()")
 y = x.min()
 print(y)
 y = np.min([2, 3, 4])
@@ -53,6 +58,7 @@ print(y)
 """
 amin
 """
+print("amin()")
 y = np.amin([2, 3, 4])
 print(y)
 

@@ -2,10 +2,7 @@
 import numpy as np
 
 def print_array(data):
-    datas = []
-    for i in data:
-        datas.append(i)
-    print(datas)
+    print(" ".join(list(["%.3f" % i for i in data])))
 
 x = np.empty(())
 print_array(x.shape)

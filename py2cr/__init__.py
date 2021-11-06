@@ -2422,15 +2422,18 @@ class RB(object):
         """
         attr = node.attr
         
-        self.vprint(f"Attribute attr_name[{attr}]")
-        
         if (attr != '') and isinstance(node.value, ast.Name) and (node.value.id != 'self'):
-            attr_modname = self.visit(node.value)
+            # get modulename for this attr if it exists, and if it does,
+            # then de-alias it (e.g. np.xyz -> numpy.xyz)
+            rawattr_modname = self.visit(node.value)
+            attr_modname = self._module_aliases.get(rawattr_modname,rawattr_modname)
             mod_attr = "%s.%s" % (attr_modname, attr)
         else:
             attr_modname = ''
             mod_attr = ''
-            
+
+        self.vprint(f"Attribute attr_name[{attr}] mod={attr_modname} mod_attr={mod_attr}")
+        
         if not (isinstance(node.value, ast.Name) and (node.value.id == 'self')):
             renamed_attr = registry.attr_lookup(attr_modname, attr)
 
