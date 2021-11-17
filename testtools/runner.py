@@ -1,5 +1,5 @@
 """
-The special runners that look for progress in a test 
+The special runners that look for progress in a test
 and have nicer output than the original.
 """
 import sys
@@ -53,10 +53,10 @@ class Py2RbTestResult(unittest.TestResult):
         self.__state = "known to [FAIL]"
 
     def addFailure(self, test, err):
-        """ 
+        """
         Somewhat of a hack here to check the error-message to see if we
-        failed because of a difference in the output or we failed to 
-        compile. 
+        failed because of a difference in the output or we failed to
+        compile.
         """
         super(Py2RbTestResult, self).addFailure(test, err)
         message = err[1].args[0]
@@ -73,4 +73,3 @@ class Py2RbTestResult(unittest.TestResult):
 class Py2RbTestRunner(unittest.TextTestRunner):
     """Test runner with Py2RbTestResult as result class"""
     resultclass = Py2RbTestResult
-

@@ -1,7 +1,7 @@
 """module with the Writer class that helps write colorful output"""
 
 class Writer(object):
-    "Class which helps to print in color and with alignment and width"    
+    "Class which helps to print in color and with alignment and width"
 
     color_templates = (
         ("Black"       , "0;30"),
@@ -22,11 +22,11 @@ class Writer(object):
         ("White"       , "1;37"),  )
 
     colors = dict(color_templates)
-    
+
     c_normal = '\033[0m'
-    
+
     c_color = '\033[%sm'
-    
+
     def __init__(self, in_file = None):
         import sys
         self._line_wrap = False
@@ -95,12 +95,12 @@ class Writer(object):
             return self.normal_write(
                     text=(
                       "%s%s%s" % (
-                        self.c_color % self.colors[color], 
-                        text, 
+                        self.c_color % self.colors[color],
+                        text,
                         self.c_normal
                         )
                       if color in self.colors
-                      else text 
+                      else text
                       ),
                     color=color,
                     align=align,

@@ -6,11 +6,11 @@ def print_array(data):
 
 def print_matrix(data):
     print('[')
-    for d2 in list(data):
-        print("  " + ", ".join(list([str(int(i)) for i in d2])))
+    for d2 in range(np.shape(data)[0]):
+        print("  ",list(data[d2]))
     print(']')
 
-a = np.asarray([[1,2,3],[4,5,6]])
+a = np.array([[1,2,3],[4,5,6]])
 print_matrix(a)
 
 x = np.argmax(a)

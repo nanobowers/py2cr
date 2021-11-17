@@ -11,3 +11,4 @@ license: MIT
 dependencies:
   num:
     github: crystal-data/num.cr
+    branch: master

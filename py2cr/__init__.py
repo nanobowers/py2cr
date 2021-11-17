@@ -24,6 +24,7 @@ from . import pymain
 from . import pyos
 from . import pysys
 from . import pysix
+from . import pycopy
 from . import numpy
 
 registry = TranslatorRegistry()
@@ -100,6 +101,7 @@ class RB(object):
         'set'   : 'Set.new',
         'print' : 'py_print',
         'open'  : 'File.open',
+        'bool'   : 'py_is_bool', # bool-type-cast
     }
     name_map = {
         'True'  : 'true',  # python 2.x
@@ -166,7 +168,6 @@ class RB(object):
         'all' : 'py_all?',
         'any' : 'py_any?',
         'remove': 'py_remove',
-
         # probably should remove these:
         'hasattr'    : 'instance_variable_defined?',
         'getattr': 'py_getattr',
@@ -184,20 +185,28 @@ class RB(object):
     reverse_methods = {
         'type'  : 'class',
         'abs'   : 'abs',            # Numeric
+        'chr'   : 'chr',            # Int to Unicode char
         'bin'   : 'to_s(2)',
         'oct'   : 'to_s(8)',
         'hex'   : 'to_s(16)',
-        'int'   : 'to_i',
-        'float' : 'to_f',
-        'str'   : 'to_s',
         'len'   : 'size',
-        'max'   : 'max',            # Array
-        'min'   : 'min',            # Array
+     # moved to pymain to handle empty-case
+     #   'int'   : 'to_i',
+     #   'float' : 'to_f',
+     #   'str'   : 'to_s',
+     # moved to minmax-like for special multi-scalar case
+     #   'max'   : 'max',            # Array
+     #   'min'   : 'min',            # Array
         'all'   : 'is_all?',        # Enumerable
         'any'   : 'is_any?',        # Enumerable
         'iter'  : 'each',
         'sum'   : 'sum', # if Ruby 2.3 or before is 'inject(:+)' method.
         #'sum'   : 'inject(:+)', # if Ruby 2.4 or later is better sum() method.
+        'round' : 'round',
+    }
+    minmax_like_methods = {
+        'max'   : 'max',            # Array
+        'min'   : 'min',            # Array
     }
 
     attribute_map = {
@@ -1823,7 +1832,16 @@ class RB(object):
             if self._call:
                 id = self.func_name_map[id]
             else:
+                # TODO: for cases where we import attributes
+                # from modules, we would need to perform
+                # some sort of lookup.  E.g. if we do:
+                #   from numpy import ndarray
+                # ... or:
+                #   from numpy import *
+                # ... then we need to be able to evaluate:
+                #   isinstance(foo, ndarray)
                 if id in self.methods_map.keys():
+                    
                     rtn = self.get_methods_map(self.methods_map[id])
                     if rtn != '':
                         id = rtn
@@ -1872,6 +1890,8 @@ class RB(object):
         elif node.value == Ellipsis:
             return self.visit_Ellipsis(node)
         else:
+            # need to handle complex()
+            # >>> print(type(node.value))
             return repr(node.s)
         
     def visit_Str(self, node) -> str:
@@ -2334,20 +2354,50 @@ class RB(object):
             <Crystal>   ""
             """
             return ""
+        elif func in self.minmax_like_methods.keys():
+            """ 
+            [Function convert to Method (special min-max case)]
+            This is a special case b/c pythons min/max can take 
+            either one iterable arg (list/tuple) or 
+            multiple scalar values which we will interpret as a tuple
+            <Py2cr.1>    max(foo,bar,baz) => {foo,bar,baz}.max
+            <Py2cr.2>    max([foo,bar,baz]) => [foo,bar,baz].max
+            <Py2cr.3>    max((foo,bar,baz)) => {foo,bar,baz}.max
+            """
+            if len(cry_args) > 1: # multiple scalars
+                return "{%s}.%s" % (self.ope_filter(cry_args_s), func)
+            else:
+                return "%s.%s" % (self.ope_filter(cry_args_s), func)
+
+                
         elif func in self.reverse_methods.keys():
             """ 
             [Function convert to Method]
             <Python>    float(foo)
             <Crystal>   (foo).to_f
             """
-            if not isinstance(self.reverse_methods[func],  dict):
-                return "%s.%s" % (self.ope_filter(cry_args_s), self.reverse_methods[func])
+            cry_func = self.reverse_methods[func]
+            #if not isinstance(self.reverse_methods[func], dict):
             if len(cry_args) == 1:
-                if 'arg_count_1' in self.reverse_methods[func].keys():
-                    return "%s.%s" % (self.ope_filter(cry_args_s), self.reverse_methods[func]['arg_count_1'])
+                return "%s.%s" % (self.ope_filter(cry_args_s), cry_func)
             else:
-                if 'arg_count_2' in self.reverse_methods[func].keys():
-                    return "%s.%s(%s)" % (self.ope_filter(cry_args[0]), self.reverse_methods[func]['arg_count_2'], ", ".join(cry_args[1:]))
+                return "%s.%s(%s)" % (self.ope_filter(cry_args[0]), cry_func,
+                                      ", ".join(cry_args[1:]))
+        
+            #--------------------------------------
+            # Next part used to go with yaml-function-defs which
+            # we dont have anymore... however it may be useful with some
+            # functions like: `round(a,b)`
+            #--------------------------------------
+            #if len(cry_args) == 1:
+            #    if 'arg_count_1' in self.reverse_methods[func].keys():
+            #        return "%s.%s" % (self.ope_filter(cry_args_s), self.reverse_methods[func]['arg_count_1'])
+            #else:
+            #    if 'arg_count_2' in self.reverse_methods[func].keys():
+            #        return "%s.%s(%s)" % (self.ope_filter(cry_args[0]), self.reverse_methods[func]['arg_count_2'], ", ".join(cry_args[1:]))
+
+
+                
         elif func in self.methods_map.keys():
             return self.get_methods_map(self.methods_map[func], cry_args_base, ins)
         elif func in self.order_methods_with_bracket.keys():

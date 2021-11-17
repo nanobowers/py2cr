@@ -40,7 +40,7 @@ pip install numpy
 
 ### Crystal
 
-*currently there are no external dependencies*
+* [num.cr](https://github.com/crystal-data/num.cr/) - Preliminary support for translating numpy python code into crystal relies on num.cr.  This requires the latest (master) branch.
 
 ## Methodology
 
@@ -116,21 +116,25 @@ This is incomplete and many of the tests brought forward from py2rb do not pass.
 
 To some extent, it will always be incomplete.  The goal is to cover common cases and reduce the additional work to minimum-viable-program.
 
+Numpy tests have been disabled, but about 1/3rd of them are operational.
+
+Additional tests have been imported from [py2many](https://github.com/adsharma/py2many).  Many of these do not operate, but some have been used to enhance coverage of py2cr. :tada:
+
 ## Limitations
 
 + Many Python run-time exceptions are not translatable into Crystal as these issues manifest in Crystal as compile-time errors.
 + A significant portion of python code is untyped and may not translate properly in places where Crystal demands type information.
     + e.g. Crystal Lambda function parameters require typing and this is very uncommon in Python, though may be possible with `Callable[]` on the python side.
 + Python importing is significantly different than Crystal and thus may not ever map well.
-+ Numpy and Unittest which are common in Python don't have equivalents in Crystal.  With some significant additional work, converting tests into `Spec` format may be possible via https://github.com/jaredbeck/minitest_to_rspec as a guide
++ Python Unittest does not have an equivalent in Crystal.  With some significant additional work, converting tests into `Spec` format may be possible via https://github.com/jaredbeck/minitest_to_rspec as a guide.
     
 ## To-do
 
-+ [ ] Remove python2/six dependencies to reduce clutter. Py2 has been end-of-lifed for a while now.
-+ [ ] Remove numpy dependencies unless/until a suitable target for Crystal can be identified
++ [x] Remove python2/six dependencies to reduce clutter. Py2 has been end-of-lifed for a while now.
++ [x] Remove numpy dependencies unless/until a suitable target for Crystal can be identified
 + [ ] Add additional Crystal shim methods to translate common python3 stdlib methods.  Consider a mode that just maps to a close Crystal method rather than using a shim-method to reduce the python-ness.
 + [ ] Refactor the code-base.  Most of it is in the `__init__.py`
-+ [ ] Add additional unit-tests
++ [x] Add additional unit-tests
 + [ ] Multi-thread the test-suite so it can run faster.
 
 ## Contribute

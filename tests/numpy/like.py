@@ -3,8 +3,8 @@ import numpy as np
 
 def print_matrix(data):
     print('[')
-    for d2 in list(data):
-        print("  " + ", ".join(list([str(int(i)) for i in d2])))
+    for d2 in range(np.shape(data)[0]):
+        print("  ",list(data[d2]))
     print(']')
 
 x = np.arange(6)

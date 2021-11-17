@@ -5,10 +5,10 @@ def print_array(data):
     print(" ".join(list(["%d" % i for i in data])))
 
 def print_matrix(data):
-    print('[')
-    for d2 in list(data):
-        print("  " + ", ".join(list([str(int(i)) for i in d2])))
-    print(']')
+  print('[')
+  for d2 in range(np.shape(data)[0]):
+      print("  ",list(data[d2]))
+  print(']')
 
 x = np.array([2,3,4])
 print_array(x)

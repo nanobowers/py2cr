@@ -25,6 +25,56 @@ class PythonMain(CrystalTranslator):
         self.python_module_name = ""
         self.crystal_require = None
 
+    def int(funcdb):
+        """
+        <Py2cr.0> int() => 0
+        <Py2cr.1> int(val) => val.to_i
+        <Py2cr.2> int(astr,basenum) => astr.to_i(basenum)
+        """
+        cv = funcdb.crystal_visitor
+        filt_args = [cv.ope_filter(x) for x in funcdb.crystal_args]
+        func_args = len(funcdb.node.args)
+        if func_args == 0:
+            return "0"
+        elif func_args == 1:
+            return "%s.to_i" % (filt_args[0])
+        elif func_args == 2:
+            return "%s.to_i(%s)" % (filt_args[0:2])
+        raise ArgumentError("Expecting 0..2 args")
+    
+    def float(funcdb):
+        """
+        <Py2cr.0> float() => 0
+        <Py2cr.1> float(val) => val.to_f
+        <Py2cr.2> float(astr,basenum) => astr.to_f(basenum)
+        """
+        cv = funcdb.crystal_visitor
+        filt_args = [cv.ope_filter(x) for x in funcdb.crystal_args]
+        func_args = len(funcdb.node.args)
+        if func_args == 0:
+            return "0.0"
+        elif func_args == 1:
+            return "%s.to_f" % (filt_args[0])
+        raise ArgumentError("Expecting 0..1 args")
+    
+    def str(funcdb):
+        """
+        <Py2cr.0> str() => ""
+        <Py2cr.1> str(val) => val.to_s
+        <Py2cr.2> str(astr,basenum) => astr.to_i(basenum)
+        """
+        cv = funcdb.crystal_visitor
+        filt_args = [cv.ope_filter(x) for x in funcdb.crystal_args]
+        func_args = len(funcdb.node.args)
+        if func_args == 0:
+            return '""'
+        elif func_args == 1:
+            return "%s.to_s" % (filt_args[0])
+        # all else fails warn and do something
+        sys.stderr.write("Cannot handle str() with more than one arg.\n")
+        return "%s(%s)" % (func, ",".join(filt_args))
+
+    
     def range(funcdb):
         """ 
         # range one-arg

@@ -1,5 +1,9 @@
 struct Tuple
 
+  def py_in?(element)
+    self.includes?(element)
+  end
+
   def py_count(x)
     self.count(x)
   end

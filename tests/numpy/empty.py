@@ -4,8 +4,8 @@ import numpy as np
 def print_array(data):
     print(" ".join(list(["%.3f" % i for i in data])))
 
-x = np.empty(())
-print_array(x.shape)
+#x = np.empty(())
+#print_array(x.shape)
 
 x = np.empty((0))
 print_array(x.shape)

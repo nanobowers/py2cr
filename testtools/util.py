@@ -3,13 +3,10 @@ Module that defines Tool functions and test runners/result for use with
 the unittest library.
 """
 import sys
-if sys.version_info < (2, 7):
-    import unittest2 as unittest
-else:
-    import unittest
+import unittest
 import os
 import posixpath
-import re
+#import re
 import yaml
 
 def get_posix_path(path):
@@ -28,15 +25,15 @@ def run_crystal_with_stdlib(file_path, file_name=None):
     class TestCrystalStdLib(unittest.TestCase):
         """Tests crystal code with the stdlib"""
         templ = {
-            "cr_path": file_path, 
-            "cr_unix_path": get_posix_path(file_path), 
+            "cr_path": file_path,
+            "cr_unix_path": get_posix_path(file_path),
             "cr_out_path": file_path + ".out",
             "cr_error": file_path + ".err",
             "name": file_name,
         }
         def reportProgres(self):
             """Should be overloaded by the test result class."""
-    
+
         def runTest(self):
             """The actual test goes here."""
             cmd = (
@@ -54,13 +51,13 @@ def run_crystal_with_stdlib(file_path, file_name=None):
 def compile_python_file_test(file_path, file_name=None):
     """Creates a test that tests if a file can be compiled by python"""
     file_name = file_name if file_name else file_path
-    
+
     class CompileFile(unittest.TestCase):
         """Test if a file can be compiled by python."""
 
         templ = {
-            "py_path": file_path, 
-            "py_unix_path": get_posix_path(file_path), 
+            "py_path": file_path,
+            "py_unix_path": get_posix_path(file_path),
             "py_out_path": file_path + ".out",
             "py_error": file_path + ".err",
             "name": file_name,
@@ -94,7 +91,7 @@ def compile_and_run_file_test(file_path, file_name=None):
         """Tests that a file can be compiled and run as crystal"""
         name_path, ext = os.path.splitext(file_path)
         templ = {
-        "py_path": file_path, 
+        "py_path": file_path,
         "py_dir_path": os.path.dirname(file_path),
         "py_unix_path": get_posix_path(file_path),
         "py_out_path": file_path + ".out",
@@ -124,13 +121,13 @@ def compile_and_run_file_test(file_path, file_name=None):
             """Read configuration overrides from a yaml file on a per-test basis"""
             config_file = self.templ["config_path"]
             if os.path.exists(config_file):
-                with open(config_file, 'r') as f:
-                    self.templ.update(yaml.safe_load(f))
+                with open(config_file, 'r') as cfg_fh:
+                    self.templ.update(yaml.safe_load(cfg_fh))
 
         def skip_invalid_version(self):
             """Perform version comparison and skip the test if we are not
             within the range of valid versions"""
-            templ=self.templ
+            templ = self.templ
             pymajor = sys.version_info.major
             pyminor = sys.version_info.minor
             if templ["min_python_version"]:
@@ -154,9 +151,7 @@ def compile_and_run_file_test(file_path, file_name=None):
             if self.templ["argument_list"] is None:
                 return ""
             return " ".join(self.templ["argument_list"])
-                
 
-        
         def runTest(self):
             """The actual test goes here."""
             self.enhance_configuration()
@@ -169,10 +164,10 @@ def compile_and_run_file_test(file_path, file_name=None):
                 (python_command, "python"),
                 (compile_command, "py2cr"),
                 (crystal_command, "crystal") ]
-            
-            with open(self.templ['cmd_out'], mode = 'w') as fh:
+
+            with open(self.templ['cmd_out'], mode = 'w') as cmdfh:
                 for cmd, stage in command_stages:
-                    fh.write(cmd + '\n')
+                    cmdfh.write(cmd + '\n')
                     #print(cmd) # debug
                     # The compile command should always exit cleanly.
                     # The other two jobs may optionally have an overridden and equivalent expected_exit_status
@@ -186,22 +181,19 @@ def compile_and_run_file_test(file_path, file_name=None):
             # Partial Match
             if os.path.exists(self.templ["cr_out_expected_in_path"]):
                 # Fixed statement partial match
-                f = open(self.templ["cr_out_expected_in_path"])
-                g = open(self.templ["cr_out_path"])
-                self.assertIn(f.read(), g.read(), "diff")
-                f.close()
-                g.close()
+                with open(self.templ["cr_out_expected_in_path"], 'r') as exfh:
+                    with open(self.templ["cr_out_path"]) as outfh:
+                        self.assertIn(exfh.read(), outfh.read(), "diff")
             else: # Full text match
                 # Fixed sentence matching
                 if os.path.exists(self.templ["cr_out_expected_path"]):
                     expected_file_path = self.templ["cr_out_expected_path"]
                 else: # Dynamic sentence matching
                     expected_file_path = self.templ["py_out_path"]
-                f = open(expected_file_path, 'r')
-                g = open(self.templ["cr_out_path"])
-                self.assertEqual(f.readlines(), g.readlines(), "diff")
-                f.close()
-                g.close()
+                with open(expected_file_path, 'r') as exfh:
+                    with open(self.templ["cr_out_path"]) as outfh:
+                        self.assertEqual(exfh.readlines(), outfh.readlines(), "diff")
+
             self.reportProgres()
 
         def __str__(self):

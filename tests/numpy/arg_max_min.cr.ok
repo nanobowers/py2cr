@@ -1,0 +1,48 @@
+require "py2cr"
+require "num"
+def print_array(data)
+  py_print(data.map{|i| "%d" % i}.to_a.join(" "))
+end
+def print_matrix(data)
+  py_print("[")
+  xdim = data.shape.first
+  xdim.times do |x|
+    py_print("  ", data[x].to_a)
+  end
+  py_print("]")
+end
+
+a = [[1, 2, 3], [4, 5, 6]].to_tensor #.to_a
+print_matrix(a)
+x = Num.argmax(a)
+py_print(x)
+# 
+# <Not Compatible with axis>
+# Python argmax  : [1, 1, 1]
+# Ruby max_index : [3, 4, 5] (flat Array index)
+# 
+x = Num.argmax(a, axis: 0)
+print_array(x)
+# 
+# <Not Compatible with axis>
+# Python argmax  : [2, 2]
+# Ruby max_index : [2, 5] (flat Array index)
+#  
+x = Num.argmax(a, axis: 1)
+print_array(x)
+x = Num.argmin(a)
+py_print(x)
+# 
+# <Not Compatible with axis>
+# Python argmax  : [0, 0, 0]
+# Ruby max_index : [0, 1, 2] (flat Array index)
+#  
+x = Num.argmin(a, axis: 0)
+print_array(x)
+# 
+# <Not Compatible with axis>
+# Python argmax  : [0, 0]
+# Ruby max_index : [0, 3] (flat Array index)
+#  
+x = Num.argmin(a, axis: 1)
+print_array(x)
