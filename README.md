@@ -31,11 +31,11 @@ git clone git://github.com/nanobowers/py2cr.git
 ```
 pip install pyyaml
 
+# Converts to num.cr in crystal-space
+pip install numpy
+
 # Probably not needed for much longer since py2 support is going to be removed.
 pip install six 
-
-# Probably not really needed since there is no crystal equivalent
-pip install numpy
 ```
 
 ### Crystal
@@ -116,9 +116,11 @@ This is incomplete and many of the tests brought forward from py2rb do not pass.
 
 To some extent, it will always be incomplete.  The goal is to cover common cases and reduce the additional work to minimum-viable-program.
 
-Numpy tests have been disabled, but about 1/3rd of them are operational.
+Numpy tests have been disabled from the default testsuite, but about 1/3rd of them are operational and can be run with `./run_tests.py numpy`
 
-Additional tests have been imported from [py2many](https://github.com/adsharma/py2many).  Many of these do not operate, but some have been used to enhance coverage of py2cr. :tada:
+
+Additional tests have been imported from [py2many](https://github.com/adsharma/py2many).  Many of these do not operate (known to fail), but some have been used to enhance coverage of py2cr. :tada:  Run these with `./run_tests.py py2many`
+It is possible some of the py2many tests cover pre-existing tests, so some many be pruned out later on.
 
 ## Limitations
 
@@ -131,7 +133,7 @@ Additional tests have been imported from [py2many](https://github.com/adsharma/p
 ## To-do
 
 + [x] Remove python2/six dependencies to reduce clutter. Py2 has been end-of-lifed for a while now.
-+ [x] Remove numpy dependencies unless/until a suitable target for Crystal can be identified
++ [x] Remove numpy dependencies unless/until a suitable target for Crystal can be identified (targeting num.cr now)
 + [ ] Add additional Crystal shim methods to translate common python3 stdlib methods.  Consider a mode that just maps to a close Crystal method rather than using a shim-method to reduce the python-ness.
 + [ ] Refactor the code-base.  Most of it is in the `__init__.py`
 + [x] Add additional unit-tests
