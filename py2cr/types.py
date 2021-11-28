@@ -1,15 +1,21 @@
+"""
+This module handles conversion of python types to crystal types
+"""
+
+from typing import Tuple
 import sys
 import ast
 
-# apparently something changed in the AST between
+
+# note: apparently something changed in the AST between
 # python 3.8 and 3.9 here.
 def node_slice_value(node):
     pymajor = sys.version_info.major
     pyminor = sys.version_info.minor
     if pymajor >= 3 and pyminor >=9:
         return node.slice
-    else:
-        return node.slice.value
+    # older cases...
+    return node.slice.value
 
 class CrystalTypes:
 
@@ -28,10 +34,10 @@ class CrystalTypes:
         'Dict'  : 'Hash',
     }
 
-    def __init__(self, node):
+    def __init__(self, node) -> None:
         self.node = node
 
-    def unwrap_list(self):
+    def unwrap_list(self) -> str:
         node = self.node
         # expect node to be something to unwrap
         if not isinstance(node, ast.Subscript):
@@ -42,7 +48,7 @@ class CrystalTypes:
             raise Exception(f"Expecting ast.Subscript value to be a list but got {subscript_name}")
         return self.visit(node.slice)
 
-    def unwrap_tuple(self):
+    def unwrap_tuple(self) -> str:
         node = self.node
         # expect node to be something to unwrap
         if not isinstance(node, ast.Subscript):
@@ -53,7 +59,7 @@ class CrystalTypes:
             raise Exception(f"Expecting ast.Subscript value to be a tuple but got {subscript_name}")
         return self.visit(node.slice)
 
-    def unwrap_dict(self):
+    def unwrap_dict(self) -> Tuple[str, str]:
         node = self.node
         # expect node to be something to unwrap
         if not isinstance(node, ast.Subscript):
@@ -72,23 +78,23 @@ class CrystalTypes:
 
 
 
-    def visit(self, node = None):
+    def visit(self, node = None) -> str:
         if node is None:
             node = self.node
         if isinstance(node, ast.Name):
             return self.visit_Name(node)
-        elif isinstance(node, ast.Subscript):
+        if isinstance(node, ast.Subscript):
             return self.visit_Subscript(node)
-        elif isinstance(node, ast.Tuple):
+        if isinstance(node, ast.Tuple):
             return self.visit_Tuple(node)
-        elif isinstance(node, ast.Index):
+        if isinstance(node, ast.Index):
             return self.visit(node.value)
-        elif isinstance(node, ast.Constant):
+        if isinstance(node, ast.Constant):
             return self.visit_Constant(node)
-        else:
-            raise Exception(f"Unknown klass {type(node)} in CrystalTypes")
 
-    def visit_Name(self, node):
+        raise Exception(f"Unknown klass {type(node)} in CrystalTypes")
+
+    def visit_Name(self, node) -> str:
         """
         Name(identifier id, expr_context ctx)
         """
@@ -97,11 +103,11 @@ class CrystalTypes:
             return self.name_map[nid]
         return str(nid)
 
-    def visit_Tuple(self, node):
+    def visit_Tuple(self, node) -> str:
         els = [self.visit(e) for e in node.elts]
         return ", ".join(els)
 
-    def visit_Subscript(self, node):
+    def visit_Subscript(self, node) -> str:
         """
         Special handling for Union and Optional types.
         Subscripts for Crystal Annotations use (), not []
@@ -112,20 +118,24 @@ class CrystalTypes:
         if name == "Union":
             pipeargs = [self.visit(e) for e in node_slice.elts]
             pipetypes = " | ".join(pipeargs)
-            return "( " + pipetypes + " )"
+            return f"( {pipetypes} )"
         if name == "Optional":
             return self.visit(node_slice) + "?"
+        #return f"{name}({node_slice})"
+        #return "%s(%s)" % (self.visit(node.value), self.visit(node.slice))
+        typearg = self.visit(node.slice)
+        return f"{name}({typearg})"
 
-        return "%s(%s)" % (self.visit(node.value), self.visit(node.slice))
 
-    def visit_Constant(self, node):
+
+    def visit_Constant(self, node) -> str:
         const_typename = node.value.__class__.__name__
         if const_typename in self.name_map:
             return self.name_map[const_typename]
         return "_"
 
     @classmethod
-    def constant(cls, node, nilable=True):
+    def constant(cls, node, nilable=True) -> str:
         if isinstance(node, ast.Constant): # py3.8+
             const_typename = node.value.__class__.__name__
         elif isinstance(node, ast.Num):

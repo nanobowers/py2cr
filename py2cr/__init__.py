@@ -26,6 +26,7 @@ from . import pysys
 from . import pysix
 from . import pycopy
 from . import numpy
+from .errors import CrystalError
 
 registry = TranslatorRegistry()
 #debug print(registry.map_name_to_klass)
@@ -52,9 +53,6 @@ class ResultStatus(Enum):
     OK = 0
     INCLUDE_WARNING = 1
     INCLUDE_ERROR = 2
-    
-class CrystalError(Exception):
-    pass
 
 class FuncCall:
     def __init__(self, cryvisit, node, crytype):
@@ -70,24 +68,24 @@ class FuncCall:
         self.funcstr = funcstr
         funclist = funcstr.split('.')
         if len(funclist) == 0:
-            raise Exception(f"Cannot accept empty funclist '{funcstr_with_dots}'")
+            raise Exception(f"Cannot accept empty funclist '{funcstr}'")
         elif len(funclist) == 1:
             self.func_module = ""
             self.func_name = funclist[0]
         else:
             self.func_module = ".".join(funclist[0:-1])
             self.func_name = funclist[-1]
-            
+
     def empty_list(self):
         return self.crystal_visitor.empty_list(self.node, self.crytype)
-    
+
     def empty_hash(self):
         return self.crystal_visitor.empty_hash(self.node, self.crytype)
 
     def wrap_class_method(self, cls, method):
         argstr = ", ".join(self.crystal_args)
         return "%s.%s(%s)" % (cls, method, argstr)
-                              
+
 class RB(object):
 
     # python 3
@@ -159,7 +157,7 @@ class RB(object):
         #'UnicodeTranslateError' : '???',  # fail at compile
         #'ValueError'          : '???',  # fail at compile
         'ZeroDivisionError'   : 'DivisionByZeroError',
-        
+
     }
 
     # isinstance(foo, String) => foo.is_a?(String)
@@ -175,7 +173,7 @@ class RB(object):
 
     # np.array([x1, x2]) => Numo::NArray[x1, x2]
     order_methods_with_bracket : Dict[str, str] = {}
-    
+
     methods_map : Dict[str, str] = {}
     ignore : Dict[str, str] = {}
     mod_class_name : Dict[str, str] = {}
@@ -249,8 +247,8 @@ class RB(object):
     list_map   = set(['list']) # Array
     tuple_map  = set(['tuple']) # Tuple
     dict_map   = set(['dict']) # Hash
-    iter_map   = set(['map']) 
-    reduce_map = set(['reduce']) 
+    iter_map   = set(['map'])
+    reduce_map = set(['reduce'])
     range_map  = set(['range','xrange'])
 
     bool_op = {
@@ -328,10 +326,10 @@ class RB(object):
         self._rel_path = []
         for rel_path in self.mod_paths.values():
             self._rel_path.append(rel_path.replace('/', '.'))
-            
+
         self.vprint("base_path_count[%s] dir_path: %s, path : %s : %s" % (self._base_path_count, dir_path, path, self._path))
         self.vprint("mod_paths : %s" % self.mod_paths)
-        
+
         self.__formatter = formatter.Formatter()
         #self.capitalize = self.__formatter.capitalize
         self.write = self.__formatter.write
@@ -352,15 +350,15 @@ class RB(object):
         #   '[]'   :  "[a, b]"
         #   '=>'   :  "%s => %s" (Hash)
         #   ''     :  'a, b'
-        self._tuple_type = '[]' 
+        self._tuple_type = '[]'
         self._func_args_len = 0
         self._dict_format = False # True : Symbol ":", False : String "=>"
 
         self._is_string_symbol = False # True : ':foo' , False : '"foo"'
-        
+
         # This lists all variables in the local scope:
         self._scope = []
-        
+
         #All calls to names within _class_names will be preceded by 'new'
         # Python original class name
         self._class_names = set()
@@ -404,7 +402,7 @@ class RB(object):
 
         # This is a mapping of module-name when "import foo as bar" is used.
         self._module_aliases : Dict[str,str] = {}
-        
+
         self._import_files = []
         self._imports = []
         self._call = False
@@ -439,14 +437,14 @@ class RB(object):
 
         try:
             visitor = getattr(self, 'visit_' + self.name(node))
-        except AttributeError:
+        except AttributeError as exc:
             if self._mode == OperationMode.STOP:
                 self.set_result(ResultStatus.INCLUDE_ERROR)
-                raise CrystalError("Syntax not supported (%s line:%d col:%d)" % (node, node.lineno, node.col_offset))
+                raise CrystalError("Syntax not supported (%s line:%d col:%d)" % (node, node.lineno, node.col_offset)) from exc
             else:
                 self.maybewarn("Syntax not supported (%s line:%d col:%d)" % (node, node.lineno, node.col_offset))
                 return ''
-        
+
         if hasattr(visitor, 'statement'):
             return visitor(node, scope)
         elif self.name(node) in ["Dict", "List", "Call"]:
@@ -461,11 +459,10 @@ class RB(object):
         """
         self._module_functions = []
         if self._path != ['']:
-            """
-            <Python> imported/moduleb.py
-            <Crystal>   module Imported (base_path_count=0)
-                       module Moduleb (base_path_count=1)
-            """
+            # 
+            # <Python> imported/moduleb.py
+            # <Crystal>   module Imported (base_path_count=0)
+            #            module Moduleb (base_path_count=1)
             for i in range(len(self._path)):
                 self.vprint("base_path_count : %s, i : %s" % (self._base_path_count, i))
                 if i < self._base_path_count:
@@ -491,7 +488,7 @@ class RB(object):
     @scope
     def visit_FunctionDef(self, node):
         """ [Function Define] :
-        FunctionDef(identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns) 
+        FunctionDef(identifier name, arguments args, stmt* body, expr* decorator_list, expr? returns)
         """
 
         self._function.append(node.name)
@@ -510,35 +507,33 @@ class RB(object):
                             is_static = True
                         elif decorator.id == "property":
                             is_property = True
-                            """
-                            <Python>    @property
-                                        def x(self):
-                                            return self._x
-                            <Crystal>   def x
-                                            @_x
-                                        end
-                            """
+                            #<Python>    @property
+                            #            def x(self):
+                            #                return self._x
+                            #<Crystal>   def x
+                            #                @_x
+                            #            end
+
                         else:
                             self.maybewarn("Decorators are not supported : %s" % self.visit(decorator.id))
                     if isinstance(decorator, ast.Attribute):
                         if self.visit(node.decorator_list[0]) == (node.name + ".setter"):
                             is_setter = True
-                            """
-                            <Python> @x.setter
-                                     def x(self, value):
-                                         self._x = value
-                            <Crystal>   def x=(val)
-                                         @_x=val
-                                     end
-                            """
+                            #<Python>    @x.setter
+                            #            def x(self, value):
+                            #                self._x = value
+                            #<Crystal>   def x=(val)
+                            #              @_x=val
+                            #            end
+
                 if not is_static and not is_property and not is_setter:
                     self.maybewarn("Decorators are not supported : %s" % self.visit(node.decorator_list[0]))
 
         #for a in node.args.args:
         #    print(a.annotation.id)
-        
+
         defaults = [None]*(len(node.args.args) - len(node.args.defaults)) + node.args.defaults
-        """ Class Method """
+        # Class Method
         if self._class_name:
             self._scope = [arg.arg for arg in node.args.args]
 
@@ -564,25 +559,24 @@ class RB(object):
                 rb_args_default.append(arg_id)
             rb_args.append(" ".join(argxlist))
 
-        """ 
-        [Function method argument with Multiple Variables] : 
-        <Python>    def foo(fuga, hoge):
-                    def bar(fuga, hoge, *piyo):
-        <Crystal>   def foo(fuga, hoge)
-                    def bar(fuga, hoge, *piyo)
-        [Class instance method] : 
-        <Python>    class foo:
-                        def __init__(self, fuga):
-                        def bar(self, hoge):
-        <Crystal>   class Foo
-                        def initialize(fuga)
-                        def bar(hoge)
-        """
+        # [Function method argument with Multiple Variables] :
+        # <Python>    def foo(fuga, hoge):
+        #             def bar(fuga, hoge, *piyo):
+        # <Crystal>   def foo(fuga, hoge)
+        #             def bar(fuga, hoge, *piyo)
+        #
+        # [Class instance method] :
+        # <Python>    class foo:
+        #                 def __init__(self, fuga):
+        #                 def bar(self, hoge):
+        # <Crystal>   class Foo
+        #                 def initialize(fuga)
+        #                 def bar(hoge)
         if len(self._function) != 1:
             is_closure = True
         if self._class_name:
             if not is_static and not is_closure:
-                if not (rb_args[0] == "self"):
+                if not rb_args[0] == "self":
                     raise NotImplementedError("The first argument must be 'self'.")
                 del rb_args[0]
                 del rb_args_default[0]
@@ -600,19 +594,19 @@ class RB(object):
             # Function Method
             func_name = node.name
 
-        """ star arguments """
+        # star arguments
         if node.args.vararg:
             vararg = "*%s" % self.visit(node.args.vararg)
             rb_args.append(vararg)
             rb_args_default.append([None])
 
-        """ keyword only arguments """
+        # keyword only arguments
         for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
             arg_id = arg.arg
             rb_args.append("%s = %s" % (arg_id, self.visit(default)))
             rb_args_default.append(arg_id)
 
-        """ double star arguments """
+        # double star arguments
         if node.args.kwarg:
             kwarg = "**%s" % self.visit(node.args.kwarg)
             rb_args.append(kwarg)
@@ -632,17 +626,16 @@ class RB(object):
             #    self.write("def %s=(%s)" % (func_name, rb_args))
             self.write("def %s=(%s)" % (func_name, rb_args))
         elif is_closure:
-            """ [function closure] :
-            <Python> def foo(fuga):
-                         def bar(fuga):
-
-                         bar()
-            <Crystal>   def foo(fuga)
-                         bar = lambda do |fuga|
-                         end
-                         bar.()
-                     end
-            """
+            # [function closure] :
+            #<Python> def foo(fuga):
+            #             def bar(fuga):
+            #
+            #             bar()
+            #<Crystal>   def foo(fuga)
+            #              bar = lambda do |fuga|
+            #              end
+            #              bar.()
+            #            end
             if len(self._function_args) == 0:
                 self.write("%s = -> do" % func_name)
             else:
@@ -675,14 +668,13 @@ class RB(object):
             self._scope = []
         else:
             if node.decorator_list:
-                """ [method argument set Method Object] :
-                <Python> @mydecorator
-                         def describe():
-                             pass
-                <Crystal>   def describe()
-                            end
-                            describe = mydecorator(method(:describe))
-                """
+                # [method argument set Method Object] :
+                #<Python> @mydecorator
+                #         def describe():
+                #             pass
+                #<Crystal>   def describe()
+                #            end
+                #            describe = mydecorator(method(:describe))
                 if len(node.decorator_list) == 1 and \
                     isinstance(node.decorator_list[0], ast.Name):
                     self.write('%s = %s(method(:%s))' % (node.name, node.decorator_list[0].id, node.name))
@@ -694,8 +686,8 @@ class RB(object):
 
     @scope
     def visit_ClassDef(self, node):
-        """ 
-        [Class Define] : 
+        """
+        [Class Define] :
         ClassDef(identifier name,expr* bases, keyword* keywords, stmt* body,expr* decorator_list)
         """
         self._self_functions = []
@@ -755,7 +747,7 @@ class RB(object):
         rclass_name = class_name[0].upper() + class_name[1:]
 
         self.vprint("ClassDef class_name[%s] bases: %s" % (node.name, bases))
-        
+
         if len(bases) == 0:
             self.write("class %s" % (rclass_name))
         elif len(bases) == 1:
@@ -767,7 +759,7 @@ class RB(object):
         self._rclass_name = rclass_name
         self._rclass_names.add(rclass_name)
 
-        from ast import dump
+        #from ast import dump
         #~ methods = []
         # set instance method in the class
         for stmt in node.body:
@@ -795,24 +787,24 @@ class RB(object):
 
         for stmt in node.body:
             if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
-                """ [Class Variable] : 
-                <Python> class foo:
-                             x
-                <Crystal>   class Foo
-                             @@x       """
+                # [Class Variable] :
+                #<Python> class foo:
+                #             x
+                #<Crystal>   class Foo
+                #             @@x 
                 # ast.Tuple, ast.List, ast.*
                 value = self.visit(stmt.value)
                 #if isinstance(stmt.value, (ast.Tuple, ast.List)):
                 #    value = "[%s]" % self.visit(stmt.value)
                 #else:
                 #    value = self.visit(stmt.value)
-                
+
                 # Annotated assign only has a singular target
                 if isinstance(stmt, ast.Assign):
                     assign_targets = stmt.targets
                 else:
                     assign_targets = [stmt.target]
-                    
+
                 for t in assign_targets:
                     #print(t)
                     var = self.visit(t)
@@ -905,30 +897,30 @@ class RB(object):
                 raise Exception("Bad stmt in visit_Delete %s" % type(stmt))
 
         if num != '':
-            """ <Python>    del foo[0]
-                <Crystal>   foo.delete_at[0] """
-            self.write("%s.delete_at(%s)" % (idval, num))
+            # <Python>    del foo[0]
+            # <Crystal>   foo.delete_at[0]
+            self.write(f"{idval}.delete_at({num})")
         elif key != '':
-            """ <Python>    del foo['hoge']
-                <Crystal>   foo.delete['hoge'] """
-            self.write("%s.delete(%s)" % (idval, key))
+            # <Python>    del foo['hoge']
+            # <Crystal>   foo.delete['hoge']
+            self.write(f"{idval}.delete({key})")
         elif pyslice != '':
-            """ <Python>    del foo[1:3]
-                <Crystal>   py_del(foo, 1...3) """
-            # note py_del is defined for Array/Range args.
-            self.write("py_del(%s, %s)" % (idval, pyslice))
+            # <Python>    del foo[1:3]
+            # <Crystal>   py_del(foo, 1...3)
+            # note that `py_del` is defined for Array/Range args.
+            self.write(f"py_del({idval}, {pyslice})")
         elif attr != '':
-            """ <Python>    del foo.bar
-                <Crystal>   foo.instance_eval { remove_instance_variable(:@bar) } """
+            # <Python>    del foo.bar
+            # <Crystal>   foo.instance_eval { remove_instance_variable(:@bar) }
             self.write("%s.instance_eval { remove_instance_variable(:@%s) }" % (idval, attr))
         else:
-            """ <Python>    del foo
-                <Crystal>   foo = nil """
+            # <Python>    del foo
+            # <Crystal>   foo = nil
             self.write("%s = nil" % (idval))
-            
+
         # TODO: The previous two cases ("del foo.bar", "del foo") probably dont make any sense in crystal and should be removed.
-        
-        
+
+
     @scope
     def visit_Assign(self, node):
         """
@@ -942,15 +934,13 @@ class RB(object):
                 if len(x) == 1:
                     # Weird special case: pluck first element from array
                     # appears to work only for arrays and with a single element.
-                    """
-                    <Python>   x, = [1]
-                    <Crystal>  x = [1].first 
-                    """
+                    # <Python>   x, = [1]
+                    # <Crystal>  x = [1].first
                     target_str += "%s = " % x[0]
                     value = "%s.first" % value
                 else:
                     # multi assign
-                    """ x, y, z = [1, 2, 3] """
+                    # x, y, z = [1, 2, 3]
                     target_str += "%s = " % ','.join(x)
             elif isinstance(target, ast.Subscript):
                 name = self.visit(target.value)
@@ -972,7 +962,7 @@ class RB(object):
                     target_str += "%s[%s] = " % (name, self.visit(target.slice))
             elif isinstance(target, ast.Name):
                 var = self.visit(target)
-                if not (var in self._scope):
+                if not var in self._scope:
                     self._scope.append(var)
                 if isinstance(node.value, ast.Call):
                     if isinstance(node.value.func, ast.Name):
@@ -984,10 +974,9 @@ class RB(object):
                 target_str += "%s = " % var
             elif isinstance(target, ast.Attribute):
                 var = self.visit(target)
-                """ [instance variable] : 
-                <Python>    self.foo = hoge
-                <Crystal>   @foo     = hoge
-                """
+                # [instance variable] :
+                # <Python>    self.foo = hoge
+                # <Crystal>   @foo     = hoge
                 if var == 'self':
                     target_str += "@%s = " % str(target.attr)
                     self._class_self_variables.append(str(target.attr))
@@ -1156,17 +1145,16 @@ class RB(object):
         """
         With(withitem* items, stmt* body)
         """
-        """ <Python>    with open("hello.txt", 'w') as f:
-                            f.write("Hello, world!")
-            <Crystal>   File.open("hello.txt", "w") {|f|
-                            f.write("Hello, World!")
-                        }
-            <Python>    with open("hello.txt", 'r'):
-                            print("Hello, world!")
-            <Crystal>   File.open("hello.txt", "r") {
-                            print("Hello, world!")
-                        }
-        """
+        # <Python>    with open("hello.txt", 'w') as f:
+        #                 f.write("Hello, world!")
+        # <Crystal>   File.open("hello.txt", "w") {|f|
+        #                 f.write("Hello, World!")
+        #             }
+        # <Python>    with open("hello.txt", 'r'):
+        #                 print("Hello, world!")
+        # <Crystal>   File.open("hello.txt", "r") {
+        #                 print("Hello, world!")
+        #             }
         item_str = ''
         for stmt in node.items:
             item_str += self.visit(stmt)
@@ -1186,7 +1174,7 @@ class RB(object):
         func = self.visit(node.context_expr)
         if isinstance(node.context_expr, (ast.Call)):
             self.visit(node.context_expr)
-        if node.optional_vars == None:
+        if node.optional_vars is None:
             return "%s {" % func
         else:
             val = self.visit(node.optional_vars)
@@ -1197,17 +1185,16 @@ class RB(object):
         """
         <Python 3> ExceptHandler(expr? type, identifier? name, stmt* body)
         """
-        """ <Python> try:
-                     except AttributeError as e:
-            <Crystal>   begin
-                     rescue e : AttributeError
-                     end
-            <Python> try:
-                     except cuda.cupy.cuda.runtime.CUDARuntimeError as e:
-            <Crystal>   begin
-                     rescue AttributeError
-                     end
-        """
+        # <Python> try:
+        #             except AttributeError as e:
+        #    <Crystal>   begin
+        #             rescue e : AttributeError
+        #             end
+        #    <Python> try:
+        #             except cuda.cupy.cuda.runtime.CUDARuntimeError as e:
+        #    <Crystal>   begin
+        #             rescue AttributeError
+        #             end
 
         if node.type is None:
             self.write("rescue")
@@ -1293,7 +1280,7 @@ class RB(object):
         if registry.require_lookup_or_none(mod_name):
 
             self.vprint(f"Import mod_name={mod_name} mod_paths={self.mod_paths} **found-in-registry**")
-            
+
             mod_name = node.names[0].name.replace('.', '/')
             for path, rel_path in self.mod_paths.items():
                 self.vprint("Import mod_name=%s rel_path=%s" % (mod_name, rel_path))
@@ -1302,7 +1289,7 @@ class RB(object):
                     self.vprint("Import self._import_files: %s" % self._import_files)
                     self.write(f'require "./{rel_path}"')
 
-            if node.names[0].asname != None:
+            if node.names[0].asname is not None:
                 if node.names[0].name in self._import_files:
                     base = '::'.join([formatter.capitalize(x) for x in node.names[0].name.split('.')[self._base_path_count:]])
                     self.write("%s = %s" % (node.names[0].asname.capitalize(), base))
@@ -1318,7 +1305,7 @@ class RB(object):
                 mod_as_name = node.names[0].asname or mod_name
                 self.vprint(f"Aliasing {mod_as_name} to {mod_name}")
                 self._module_aliases[mod_as_name] = mod_name
-                
+
             #return
 
         #>> module foo as otherfoo
@@ -1327,14 +1314,14 @@ class RB(object):
 
         require_name = registry.require_lookup(mod_name)
 
-        
+
         if require_name:
             if not node.names[0].name in self._imports:
                 self.write(f'require "{require_name}"')
                 self._imports.append(node.names[0].name)
-        
+
 #        for method_key, method_value in self.module_map[mod_name].items():
-#            if method_value == None:
+#            if method_value is None:
 #                continue
 #            if method_key == 'mod_name':
 #                continue
@@ -1483,7 +1470,7 @@ class RB(object):
             base = '::'.join([formatter.capitalize(x) for x in node.module.split('.')[self._base_path_count:]])
             # self.write("#include %s" % base)
 
-            if node.names[0].asname != None:
+            if node.names[0].asname is not None:
                 if node.names[0].name in self._import_files:
                     base = '::'.join([formatter.capitalize(x) for x in node.names[0].name.split('.')[self._base_path_count:]])
                     self.write("%s = %s" % (formatter.capitalize(node.names[0].asname), base))
@@ -1496,29 +1483,27 @@ class RB(object):
                     self.write("#alias %s %s" % (node.names[0].asname, node.names[0].name))
             return
 
-        """
-        <Python>     from numpy import array
-                     array([1, 1])
-        <Crystal>    require "numo/narray"
-                     include Numo
-                     NArray[1, 1]
-        ImportFrom(module='numpy', names=[ alias(name='array', asname=None)], level=0),
-        Expr( value= Call(
-              func= Name(id='array', ctx= Load()),
-              args=[ List(elts=[ Num(n=1), Num(n=1)], ctx= Load())], keywords=[]))
-        """
-
+        
+        #<Python>     from numpy import array
+        #             array([1, 1])
+        #<Crystal>    require "numo/narray"
+        #             include Numo
+        #             NArray[1, 1]
+        #ImportFrom(module='numpy', names=[ alias(name='array', asname=None)], level=0),
+        #Expr( value= Call(
+        #      func= Name(id='array', ctx= Load()),
+        #      args=[ List(elts=[ Num(n=1), Num(n=1)], ctx= Load())], keywords=[]))
 
         require_name = registry.require_lookup(node.module)
 
         self.vprint("REQUIRE #{require_name}")
-        
+
         if require_name:
             if node.module not in self._imports:
                 self.write(f'require "{require_name}"')
                 self._imports.append(node.module)
         return
-    
+
 #        if node.module not in self.module_map:
 #            return
 #        _mod_name = self.module_map[node.module].get('mod_name', '')
@@ -1530,7 +1515,7 @@ class RB(object):
 #                    self._imports.append(node.module)
 #
 #        for method_key, method_value in self.module_map[node.module].items():
-#            if method_value == None:
+#            if method_value is None:
 #                continue
 #            if method_key == 'id':
 #                continue
@@ -1567,12 +1552,10 @@ class RB(object):
         """
         val =  self.visit(node.value)
         if isinstance(node.value, ast.Str):
-            """
-            <Python> "" * comment
-                            * sub comment ""
-            <Crystal>   # * comment
-                     #     * sub comment
-            """
+            #<Python>    """ * comment
+            #                   * sub comment """
+            #<Crystal>   # * comment
+            #            #     * sub comment
             comment = val[1:-1]
             indent = self.indent_string()
             for s in comment.split('\n'):
@@ -1583,7 +1566,6 @@ class RB(object):
 
     def visit_Pass(self, _node) -> None:
         self.write("# pass")
-        #self.write("/* pass */")
 
     def visit_Break(self, _node) -> None:
         self.write("break")
@@ -1601,8 +1583,7 @@ class RB(object):
 
     def visit_arguments(self, node) -> str:
         """
-        <Python 2> (expr* args, identifier? vararg, identifier? kwarg, expr* defaults)
-        <Python 3> (arg* args, arg? vararg, arg* kwonlyargs, expr* kw_defaults, arg? kwarg, expr* defaults)
+        <Python> (arg* args, arg? vararg, arg* kwonlyargs, expr* kw_defaults, arg? kwarg, expr* defaults)
         """
         args = []
         for arg in node.args:
@@ -1621,8 +1602,8 @@ class RB(object):
         #    i = self.visit(node.generators[0].iter)
         i = self.visit(node.generators[0].iter) # ast.Tuple, ast.List, ast.*
         t = self.visit(node.generators[0].target)
-        """ <Python> [x**2 for x in [1,2]]
-            <Crystal>   [1, 2].map{|x| x**2}  """
+        # <Python>    [x**2 for x in [1,2]]
+        # <Crystal>   [1, 2].map{|x| x**2}
         return "%s.map{|%s| %s}" % (i, t, self.visit(node.elt))
 
     def visit_ListComp(self, node) -> str:
@@ -1644,13 +1625,12 @@ class RB(object):
             t = self.visit(node.generators[0].target)
             self._tuple_type = '[]'
         if len(node.generators[0].ifs) == 0:
-            """ <Python> [x**2 for x in [1,2]]
-                <Crystal>   [1, 2].map{|x| x**2}  """
-
+            # <Python>    [x**2 for x in [1,2]]
+            # <Crystal>   [1, 2].map{|x| x**2}
             return "%s.map{|%s| %s}" % (i, t, self.visit(node.elt))
         else:
-            """ <Python> [x**2 for x in [1,2] if x > 1]
-                <Crystal>   [1, 2].select {|x| x > 1 }.map{|x| x**2}  """
+            # <Python>    [x**2 for x in [1,2] if x > 1]
+            # <Crystal>   [1, 2].select {|x| x > 1 }.map{|x| x**2}
             return "%s.select{|%s| %s}.map{|%s| %s}" % \
                     (i, t, self.visit(node.generators[0].ifs[0]), t, \
                      self.visit(node.elt))
@@ -1668,12 +1648,12 @@ class RB(object):
             t = self.visit(node.generators[0].target)
             self._tuple_type = '[]'
         if len(node.generators[0].ifs) == 0:
-            """ <Python> {key: data for key, data in {'a': 7}.items()}
-                <Crystal>   {'a', 7}.to_a.map{|key, data| [key, data]}.to_h  """
+            # <Python>    {key: data for key, data in {'a': 7}.items()}
+            # <Crystal>   {'a', 7}.to_a.map{|key, data| [key, data]}.to_h
             return "%s.map{|%s|[%s, %s]}.to_h" % (i, t, self.visit(node.key), self.visit(node.value))
         else:
-            """ <Python> {key: data for key, data in {'a': 7}.items() if data > 6}
-                <Crystal>   {'a', 7}.to_a.select{|key, data| data > 6}.map{|key, data| [key, data]}.to_h  """
+            # <Python> {key: data for key, data in {'a': 7}.items() if data > 6}
+            # <Crystal>   {'a', 7}.to_a.select{|key, data| data > 6}.map{|key, data| [key, data]}.to_h
             return "%s.select{|%s| %s}.map{|%s|[%s, %s]}.to_h" % \
                     (i, t, self.visit(node.generators[0].ifs[0]), t, \
                      self.visit(node.key), self.visit(node.value))
@@ -1691,12 +1671,12 @@ class RB(object):
             t = self.visit(node.generators[0].target)
             self._tuple_type = '[]'
         if len(node.generators[0].ifs) == 0:
-            """ <Python> [x**2 for x in {1,2}]
-                <Crystal>   [1, 2].map{|x| x**2}.to_set  """
+            # <Python> [x**2 for x in {1,2}]
+            # <Crystal>   [1, 2].map{|x| x**2}.to_set
             return "%s.map{|%s| %s}.to_set" % (i, t, self.visit(node.elt))
         else:
-            """ <Python> [x**2 for x in {1,2} if x > 1]
-                <Crystal>   {1, 2}.select {|x| x > 1 }.map{|x| x**2}.to_set  """
+            # <Python> [x**2 for x in {1,2} if x > 1]
+            # <Crystal>   {1, 2}.select {|x| x > 1 }.map{|x| x**2}.to_set
             return "%s.select{|%s| %s}.map{|%s| %s}.to_set" % \
                     (i, t, self.visit(node.generators[0].ifs[0]), t, \
                      self.visit(node.elt))
@@ -1705,21 +1685,20 @@ class RB(object):
         """
         Lambda(arguments args, expr body)
         """
-        """ [Lambda Definition] : 
-        <Python>    lambda x,y :x*y
-        <Crystal>   ->(x,y) {x*y}
-
-        <Python>    lambda *x: print(x)
-        <Crystal>   ->(*x) { print(x)}
-
-        <Python>    def foo(x, y):
-                        x(y)
-                    foo(lambda x: print(a), a)
-        <Crystal>   def foo(x, y)
-                        x.(y)
-                    end
-                    foo(-> {|x| print(a)}, a)
-        """
+        # [Lambda Definition] :
+        #<Python>    lambda x,y :x*y
+        #<Crystal>   ->(x,y) {x*y}
+        #
+        #<Python>    lambda *x: print(x)
+        #<Crystal>   ->(*x) { print(x)}
+        #
+        #<Python>    def foo(x, y):
+        #                x(y)
+        #            foo(lambda x: print(a), a)
+        #<Crystal>   def foo(x, y)
+        #                x.(y)
+        #            end
+        #            foo(-> {|x| print(a)}, a)
         if style == "block":
             return "{ |%s| %s }" % (self.visit(node.args), self.visit(node.body))
         else:
@@ -1771,10 +1750,10 @@ class RB(object):
         def compare_pair(left : str, comp : str, op):
             if (left == '__name__') and (comp == '"__main__"') or \
                (left == '"__main__"') and (comp == '__name__'):
-                """ <Python>  __name__ == '__main__':
-                    <Crystal>    __FILE__ == $0          """
+                # <Python>     __name__ == '__main__':
+                # <Crystal>    __FILE__ == PROGRAM_NAME
                 left = '__FILE__'
-                comp = '$0'
+                comp = 'PROGRAM_NAME'
             # Cannot necessarily use includes?, as includes? is not
             # defined for Hashes in Crystal, so chose to define a py_in?
             # method on String/Array/Hash
@@ -1791,8 +1770,9 @@ class RB(object):
             else:
                 return "%s %s %s" % (left, self.get_comparison_op(op), comp)
 
+        # This handles python's `a < b < c` to convert to `(a < b) && (b < c)`
         compare_list : List[str] = []
-        comp : str
+        comp : str = "???" # fake initial value
         for i in range(len(node.ops)):
             if i == 0:
                 left = self.visit(node.left)
@@ -1811,7 +1791,7 @@ class RB(object):
         """
         Starred(expr value, expr_context ctx)
         """
-        return "*%s" % self.visit(node.value)
+        return "*" + self.visit(node.value)
 
     # python 3
     def visit_NameConstant(self, node) -> str:
@@ -1826,11 +1806,11 @@ class RB(object):
         """
         Name(identifier id, expr_context ctx)
         """
-        id = node.id
+        nid = node.id
 
         try:
             if self._call:
-                id = self.func_name_map[id]
+                nid = self.func_name_map[nid]
             else:
                 # TODO: for cases where we import attributes
                 # from modules, we would need to perform
@@ -1840,22 +1820,22 @@ class RB(object):
                 #   from numpy import *
                 # ... then we need to be able to evaluate:
                 #   isinstance(foo, ndarray)
-                if id in self.methods_map.keys():
-                    
-                    rtn = self.get_methods_map(self.methods_map[id])
+                if nid in self.methods_map.keys():
+
+                    rtn = self.get_methods_map(self.methods_map[nid])
                     if rtn != '':
-                        id = rtn
+                        nid = rtn
                 else:
-                    id = self.name_map[id]
+                    nid = self.name_map[nid]
         except KeyError:
             pass
 
         try:
-            id = self.exception_map[id]
+            nid = self.exception_map[nid]
         except KeyError:
             pass
 
-        return id
+        return nid
 
     def visit_Num(self, node) -> str:
         return str(node.n)
@@ -1893,7 +1873,7 @@ class RB(object):
             # need to handle complex()
             # >>> print(type(node.value))
             return repr(node.s)
-        
+
     def visit_Str(self, node) -> str:
         """
         Str(string s)
@@ -1907,7 +1887,7 @@ class RB(object):
         else:
             txt = '"' + txt + '"'
         return txt
-    
+
     def visit_JoinedStr(self, node) -> str:
         txt = ""
         for val in node.values:
@@ -1930,7 +1910,7 @@ class RB(object):
             return self.visit(node.value) + ".to_s"
         else:
             return self.visit(node.value)
-    
+
     def key_list_check(self, key_list, rb_args):
         j = 0
         star = 0
@@ -1971,26 +1951,24 @@ class RB(object):
             return False
 
         key_l = key_list[:]
-        if wstar_i != False:
+        if wstar_i is not False:
             if wstar != 1:
                 key_l = key_l[:-1]
-        if star_i != False:
+        if star_i is not False:
             if star != 1:
                 key_l = key_l[:-1]
 
         return key_l
 
     def get_key_list(self, rb_args, key_lists):
-        if rb_args == False:
+        if rb_args is False:
             return False
-        """ 
-        key: - ['stop']                           : len(rb_args) == 1
-        ____ - ['start', 'stop', 'step', 'dtype'] : len(rb_args) != 1
-        """
+        #key: - ['stop']                           : len(rb_args) == 1
+        #____ - ['start', 'stop', 'step', 'dtype'] : len(rb_args) != 1
         for key_list in key_lists:
             l = self.key_list_check(key_list, rb_args)
             self.vprint("get_key_list len(key_list): %s l: %s" % (len(key_list), l))
-            if l != False:
+            if l is not False:
                 self.vprint("get_key_list %s" % l)
                 return l
         return False
@@ -2002,20 +1980,20 @@ class RB(object):
         <Python> np.prod(shape, axis=1, keepdims=True)
         <Crystal>   Numo::NArray[shape].prod(axis:1, keepdims:true)
         """
-        if rb_args == False:
+        if rb_args is False:
             if 'key' in method_map.keys():
                 return ''
 
         key_list = False
         key_order_list = False
-        if rb_args != False:
+        if rb_args is not False:
             if 'key' in method_map.keys():
                 key_list = self.get_key_list(rb_args, method_map['key'])
             if 'key_order' in method_map.keys():
                 key_order_list = self.get_key_list(rb_args, method_map['key_order'])
 
         rtn = False
-        if key_list != False:
+        if key_list is not False:
             if 'rtn_star' in method_map.keys():
                 for i in range(len(method_map['rtn_star'])):
                     if len(key_list) == i:
@@ -2023,7 +2001,7 @@ class RB(object):
                         break
                 else:
                     rtn = method_map['rtn_star'][-1]
-        if (rtn == False) and (rb_args != False):
+        if (rtn is False) and (rb_args is not False):
             if 'rtn' in method_map.keys():
                 for i in range(len(method_map['rtn'])):
                     if len(rb_args) == i:
@@ -2038,7 +2016,7 @@ class RB(object):
 
         bracket = True
         if 'bracket' in method_map.keys():
-            if method_map['bracket'] == False:
+            if method_map['bracket'] is False:
                 bracket = False
         main_data = ''
         main_func = ''
@@ -2052,7 +2030,7 @@ class RB(object):
                 elif '*' in key:
                     args_hash[key] = []
         func_key = method_map.get('main_func_key', '')  # dtype
-        if rb_args and (key_list != False):
+        if rb_args and (key_list is not False):
             i = 0
             for j in range(len(rb_args)):
                 if '**' in key_list[i]:
@@ -2076,7 +2054,7 @@ class RB(object):
                     args_hash[key] = value
                     i += 1
             self.vprint("get_methods_map func_key : %s : args_hash %s" % (func_key, args_hash))
-            if key_order_list != False:
+            if key_order_list is not False:
                 key_list = key_order_list
             for key in key_list:
                 if key == func_key:
@@ -2085,19 +2063,19 @@ class RB(object):
                     continue
                 value = args_hash[key]
                 if key in method_map['val'].keys():
-                    if method_map['val'][key] == True:
-                        if type(value) == list:
+                    if method_map['val'][key] is True:
+                        if isinstance(value, list):
                             value = ', '.join(value)
                         m_args.append(value)
                         args_hash[key] = value
-                    elif type(method_map['val'][key]) == str:
+                    elif isinstance(method_map['val'][key], str):
                         if "%" in method_map['val'][key]:
                             m_args.append(method_map['val'][key] % {key: value})
                             args_hash[key] = method_map['val'][key] % {key: value}
                         else:
                             m_args.append("%s: %s" % (key, value))
                             args_hash[key] = value
-                    elif method_map['val'][key] == False:
+                    elif method_map['val'][key] is False:
                         continue
                     elif self._verbose:
                         print("get_methods_map key : %s not match method_map['val'][key] %s" % (key, method_map['val'][key]))
@@ -2117,14 +2095,13 @@ class RB(object):
             for kw, val in args_hash.items():
                 if kw in method_map['val'].keys() and kw == func_key:
                     for key in method_map['main_func_hash'].keys():
-                        """ [Function convert to Method]
-                        <Python> dtype=np.int32
-                        <Crystal>   Numo::Int32
-                        """
+                        # [Function convert to Method]
+                        # <Python>   dtype=np.int32
+                        # <Crystal>   Numo::Int32
                         if "%s" in key:
                             key2 = (key % ins) # key2: np.int32
                         if val == key2:
-                            main_func = method_map['main_func_hash'][key] 
+                            main_func = method_map['main_func_hash'][key]
             else:
                 if main_func == '' and 'main_func_hash_nm' in method_map.keys():
                     main_func = method_map['main_func_hash_nm']
@@ -2147,14 +2124,15 @@ class RB(object):
             return "%s%s" % (main_func, ', '.join(m_args))
 
     def visit_keyword(self, node):
-        """ keyword in a function call 
+        """ 
+        Keyword in a function call
         <Python> run_func(kw="value")
         <Crystal run_func(kw: "value")
         """
         keyname = node.arg
         kwvalue = self.visit(node.value)
         return f"{keyname}: {kwvalue}"
-        
+
     def visit_Call(self, node, crytype = None):
         """
         Call(expr func, expr* args, keyword* keywords)
@@ -2162,15 +2140,15 @@ class RB(object):
         funcdb = FuncCall(cryvisit=self, node=node, crytype=crytype)
         cry_args = funcdb.crystal_args
 
-        """ [method argument set Method Object] :
-        <Python>    def describe():
-                        return "world"
-                    describe = mydecorator(describe)
-        <Crystal>   def describe()
-                        return "world"
-                    end
-                    describe = mydecorator(method(:describe))
-        """
+        # [method argument set Method Object] :
+        # <Python>    def describe():
+        #                 return "world"
+        #             describe = mydecorator(describe)
+        #
+        # <Crystal>   def describe()
+        #                 return "world"
+        #             end
+        #             describe = mydecorator(method(:describe))
         self._func_args_len = len(cry_args)
         if not isinstance(node.func, ast.Call):
             self._call = True
@@ -2179,7 +2157,7 @@ class RB(object):
         if not isinstance(node.func, ast.Call):
             self._call = False
 
-        """ [Inherited Instance Method] """
+        # [Inherited Instance Method]
         opt = None
         if self._class_name:
             for base_class in self._classes_base_classes[self._class_name]:
@@ -2194,19 +2172,17 @@ class RB(object):
             if func.startswith(f):
                 self.vprint("Call func: %s " % func)
                 func = func.replace(f + '.', '', 1)
-                """ <Python> imported.moduleb.moduleb_class
-                    <Crystal>   Imported::Moduleb::Moduleb_class (base_path_count=0)
-                                       Moduleb::Moduleb_class (base_path_count=1)
-                """
+                # <Python>    imported.moduleb.moduleb_class
+                # <Crystal>   Imported::Moduleb::Moduleb_class (base_path_count=0)
+                #                       Moduleb::Moduleb_class (base_path_count=1)
                 if func in self._class_names:
                     func = formatter.capitalize(func) + '.new'
-                """ <Python> * tests/modules/imported/modulec.py
-                               import imported.submodules.submodulea
-                               imported.submodules.submodulea.foo()
-                    <Crystal>   * tests/modules/imported/modulec.cr
-                               require_relative "submodules/submodulea"
-                               Submodules::Submodulea::foo()
-                """
+                # <Python>    * tests/modules/imported/modulec.py
+                #               import imported.submodules.submodulea
+                #               imported.submodules.submodulea.foo()
+                # <Crystal>   * tests/modules/imported/modulec.cr
+                #               require_relative "submodules/submodulea"
+                #               Submodules::Submodulea::foo()
                 base = '::'.join([formatter.capitalize(x) for x in f.split('.')[self._base_path_count:]])
                 if base != '':
                     func = base + '.' + func # was '::'
@@ -2223,24 +2199,23 @@ class RB(object):
                 func = func.replace(f + '.', '')
                 if func in self._class_names:
                     func = formatter.capitalize(func) + '.new'
-                """ <Python> * tests/modules/imported/modulee.py
-                               from imported.submodules import submodulea
-                               submodulea.foo()
-                    <Crystal>   * tests/modules/imported/modulee.cr
-                               require_relative 'submodules/submodulea'
-                               include Submodules
-                               Submodulea::foo()
-                """
+                # <Python>    * tests/modules/imported/modulee.py
+                #               from imported.submodules import submodulea
+                #               submodulea.foo()
+                # <Crystal>   * tests/modules/imported/modulee.cr
+                #               require_relative 'submodules/submodulea'
+                #               include Submodules
+                #               Submodulea::foo()
                 base = '::'.join([formatter.capitalize(x) for x in f.split('.')])
                 if base != '':
                     func = base + '::' + func
                 self.vprint("Call func: %s" % func)
                 break
 
-        """ [Class Instance Create] :
-        <Python> foo()
-        <Crystal>   Foo.new()
-        """
+        # [Class Instance Create] :
+        # <Python>    foo()
+        # <Crystal>   Foo.new()
+
         if func in self._class_names:
             func = formatter.capitalize(func) + '.new'
 
@@ -2248,13 +2223,12 @@ class RB(object):
         # At this point, we have massaged the func.variable enough...
         # now attach it to the funcdb
         funcdb.set_func(func)
-        
-        """ [method argument set Keyword Variables] :
-        <Python>    def foo(a, b=3): <...>
-                    foo(a, 5)
-        <Crystal>   def foo (a, b: 3) <...>
-                    foo(a, b:5)
-        """
+
+        # [method argument set Keyword Variables] :
+        # <Python>    def foo(a, b=3): <...>
+        #             foo(a, 5)
+        # <Crystal>   def foo (a, b: 3) <...>
+        #             foo(a, b:5)
         func_arg = None
         is_static = False
         if func.find('.') == -1:
@@ -2276,22 +2250,21 @@ class RB(object):
                 func_arg = self._classes_self_functions_args[ins][method]
 
         if func in self.methods_map_middle.keys():
-            """ [Function convert to Method]
-            <Python>    isinstance(foo, String)
-            <Crystal>   foo.is_a? String
-            """
+            # [Function convert to Method]
+            #<Python>    isinstance(foo, String)
+            #<Crystal>   foo.is_a? String
             if len(cry_args) == 1:
                 return "%s.%s" % (cry_args[0], self.methods_map_middle[func])
             else:
                 return "%s.%s %s" % (cry_args[0], self.methods_map_middle[func], cry_args[1])
 
-        if is_static == False:
+        if is_static is False:
             if ((len(cry_args) != 0 ) and (cry_args[0] == 'self')):
                 del cry_args[0]
                 self._func_args_len = len(cry_args)
 
-        """ Use keyword argments in function defined case."""
-        if func_arg != None:
+        # Use keyword argments in function defined case.
+        if func_arg is not None:
             if ((len(cry_args) != 0 ) and (cry_args[0] == 'self')):
                 args = cry_args[1:]
             else:
@@ -2300,7 +2273,7 @@ class RB(object):
                 #print("i[%s]:%s" % (i, args[i]))
                 if len(func_arg) <= i:
                     break
-                if (func_arg[i] != None) and (func_arg[i] != []):
+                if (func_arg[i] is not None) and (func_arg[i] != []):
                     cry_args[i] = "%s: %s" % (func_arg[i], cry_args[i])
 
         self._func_args_len = 0
@@ -2314,10 +2287,9 @@ class RB(object):
         # ast.Tuple, ast.List, ast.*
         cry_args_base = copy.deepcopy(cry_args)
         if node.keywords:
-            """ [Keyword Argument] : 
-            <Python>    foo(1, fuga=2):
-            <Crystal>   foo(1, fuga: 2)
-            """
+            # [Keyword Argument] :
+            # <Python>    foo(1, fuga=2):
+            # <Crystal>   foo(1, fuga: 2)
             for kw in node.keywords:
                 cry_args.append(self.visit(kw))
                 self._conv = False
@@ -2348,34 +2320,28 @@ class RB(object):
             return lkfunc(funcdb)
 
         if func in self.ignore.keys():
-            """ 
-            [Function convert to Method]
-            <Python>    unittest.main()
-            <Crystal>   ""
-            """
+            # [Function convert to Method]
+            # <Python>    unittest.main()
+            # <Crystal>   ""
             return ""
         elif func in self.minmax_like_methods.keys():
-            """ 
-            [Function convert to Method (special min-max case)]
-            This is a special case b/c pythons min/max can take 
-            either one iterable arg (list/tuple) or 
-            multiple scalar values which we will interpret as a tuple
-            <Py2cr.1>    max(foo,bar,baz) => {foo,bar,baz}.max
-            <Py2cr.2>    max([foo,bar,baz]) => [foo,bar,baz].max
-            <Py2cr.3>    max((foo,bar,baz)) => {foo,bar,baz}.max
-            """
+            # [Function convert to Method (special min-max case)]
+            # This is a special case b/c pythons min/max can take
+            # either one iterable arg (list/tuple) or
+            # multiple scalar values which we will interpret as a tuple
+            # <Py2cr.1>    max(foo,bar,baz) => {foo,bar,baz}.max
+            # <Py2cr.2>    max([foo,bar,baz]) => [foo,bar,baz].max
+            # <Py2cr.3>    max((foo,bar,baz)) => {foo,bar,baz}.max
             if len(cry_args) > 1: # multiple scalars
                 return "{%s}.%s" % (self.ope_filter(cry_args_s), func)
             else:
                 return "%s.%s" % (self.ope_filter(cry_args_s), func)
 
-                
+
         elif func in self.reverse_methods.keys():
-            """ 
-            [Function convert to Method]
-            <Python>    float(foo)
-            <Crystal>   (foo).to_f
-            """
+            # [Function convert to Method]
+            # <Python>    float(foo)
+            # <Crystal>   (foo).to_f
             cry_func = self.reverse_methods[func]
             #if not isinstance(self.reverse_methods[func], dict):
             if len(cry_args) == 1:
@@ -2383,7 +2349,7 @@ class RB(object):
             else:
                 return "%s.%s(%s)" % (self.ope_filter(cry_args[0]), cry_func,
                                       ", ".join(cry_args[1:]))
-        
+
             #--------------------------------------
             # Next part used to go with yaml-function-defs which
             # we dont have anymore... however it may be useful with some
@@ -2397,33 +2363,30 @@ class RB(object):
             #        return "%s.%s(%s)" % (self.ope_filter(cry_args[0]), self.reverse_methods[func]['arg_count_2'], ", ".join(cry_args[1:]))
 
 
-                
+
         elif func in self.methods_map.keys():
             return self.get_methods_map(self.methods_map[func], cry_args_base, ins)
         elif func in self.order_methods_with_bracket.keys():
-            """ [Function convert to Method]
-            <Python> os.path.dirname(name)
-            <Crystal>   File.dirname(name)
-            """
+            # [Function convert to Method]
+            # <Python>    os.path.dirname(name)
+            # <Crystal>   File.dirname(name)
             return "%s(%s)" % (self.order_methods_with_bracket[func], ','.join(cry_args))
         elif isinstance(node.func, ast.Attribute) and (node.func.attr in self.call_attribute_map):
-            """ [Function convert to Method]
-            <Python>    ' '.join(['a', 'b'])
-            <Crystal>   ['a', 'b'].join(' ')
-            """
+            # [?? convert to Method]
+            # <Python>    ' '.join(['a', 'b'])
+            # <Crystal>   ['a', 'b'].join(' ')
             return "%s.%s" % (cry_args_s, func)
         elif isinstance(node.func, ast.Lambda) or (func in self._lambda_functions):
-            """ [Lambda Call] :
-            <Python>    (lambda x:x*x)(4)
-            <Crystal>   lambda{|x| x*x}.call(4)
-            <Python>    foo = lambda x:x*x
-                        foo(4)
-            <Crystal>   foo = lambda{|x| x*x}
-                        foo.call(4)
-            """
+            # [Lambda Call] :
+            # <Python>    (lambda x:x*x)(4)
+            # <Crystal>   lambda{|x| x*x}.call(4)
+            # <Python>    foo = lambda x:x*x
+            #             foo(4)
+            # <Crystal>   foo = lambda{|x| x*x}
+            #             foo.call(4)
             return "%s.call(%s)" % (func, cry_args_s)
         elif self._class_name:
-            """ [Inherited Instance Method] """
+            # [Inherited Instance Method]
             self.vprint("self._classes_base_classes : %s" % self._classes_base_classes[self._class_name])
             for base_class in self._classes_base_classes[self._class_name]:
                 base_func = "%s.%s" % (base_class, func)
@@ -2432,10 +2395,9 @@ class RB(object):
                     self.vprint("Call Inherited Instance Method : %s : base_func %s" % (base_func, cry_args))
                     return self.get_methods_map(self.methods_map[base_func], cry_args, ins)
                 if base_func in self.order_methods_with_bracket.keys():
-                    """ [Inherited Instance Method] :
-                    <Python>    self.assertEqual()
-                    <Crystal>   assert_equal()
-                    """
+                    # [Inherited Instance Method] :
+                    # <Python>    self.assertEqual()
+                    # <Crystal>   assert_equal()
                     return "%s(%s)" % (self.order_methods_with_bracket[base_func], ','.join(cry_args))
 
         if (func in self._scope or func[0] == '@') and \
@@ -2443,9 +2405,9 @@ class RB(object):
             return "%s.py_call(%s)" % (func, cry_args_s)
 
         if func[-1] == ')':
-            return "%s" % (func)
+            return func
         else:
-            return "%s(%s)" % (func, cry_args_s)
+            return f"{func}({cry_args_s})"
 
     def visit_Raise(self, node) -> None:
         """
@@ -2459,19 +2421,18 @@ class RB(object):
             if len(node.exc.args) == 0:
                 self.write("raise %s" % self.visit(node.exc))
             else:
-                """ [Exception] :
-                <Python>    raise ValueError('foo.')
-                <Crystal>   raise TypeError.new("foo.")
-                """
+                # [Exception] :
+                # <Python>    raise ValueError('foo.')
+                # <Crystal>   raise TypeError.new("foo.")
                 self.write("raise %s.new(%s)" % (self.visit(node.exc.func), self.visit(node.exc.args[0])))
 
-            
+
     def visit_Attribute(self, node) -> str:
         """
         Attribute(expr value, identifier attr, expr_context ctx)
         """
         attr = node.attr
-        
+
         if (attr != '') and isinstance(node.value, ast.Name) and (node.value.id != 'self'):
             # get modulename for this attr if it exists, and if it does,
             # then de-alias it (e.g. np.xyz -> numpy.xyz)
@@ -2483,20 +2444,20 @@ class RB(object):
             mod_attr = ''
 
         self.vprint(f"Attribute attr_name[{attr}] mod={attr_modname} mod_attr={mod_attr}")
-        
+
         if not (isinstance(node.value, ast.Name) and (node.value.id == 'self')):
             renamed_attr = registry.attr_lookup(attr_modname, attr)
 
             # Pre-map the attributes (e.g write => print)
             if attr in self.attribute_map.keys():
-                """ [Attribute method converter]
-                <Python>    fuga.append(bar)
-                <Crystal>   fuga.push(bar)   """
+                # [Attribute method converter]
+                # <Python>    fuga.append(bar)
+                # <Crystal>   fuga.push(bar)
                 attr = self.attribute_map[attr]
 
             if renamed_attr:
                 return renamed_attr
-            
+
 #            if mod_attr in self.attribute_map.keys():
 #                """ [Attribute method converter]
 #                <Python> six.PY3 # True
@@ -2511,105 +2472,98 @@ class RB(object):
                 if rtn != '':
                     return rtn
             if self._func_args_len == 0:
-                """ [Attribute method converter without args]
-                <Python>     fuga.split()
-                <Crystal>   fuga.split()   """
+                # [Attribute method converter without args]
+                # <Python>     fuga.split()
+                # <Crystal>   fuga.split()
                 if attr in self.attribute_not_arg.keys():
                     attr = self.attribute_not_arg[attr]
             else:
-                """ [Attribute method converter with args]
-                <Python>    fuga.split(foo,bar)
-                <Crystal>   fuga.split_p(foo,bar)   """
+                # [Attribute method converter with args]
+                # <Python>    fuga.split(foo,bar)
+                # <Crystal>   fuga.split_p(foo,bar)
                 if attr in self.attribute_with_arg.keys():
                     attr = self.attribute_with_arg[attr]
 
         if isinstance(node.value, ast.Call):
-            """ [Inherited Class method call]
-            <Python> class bar(object):
-                         def __init__(self,name):
-                             self.name = name
-                     class foo(bar):
-                         def __init__(self,val,name):
-                             super(bar, self).__init__(name)
-
-            <Crystal>   class Bar
-                           def initialize(name)
-                               @name = name
-                           end
-                        end
-                        class Foo < Bar
-                           def initialize(val, name)
-                               super(name)
-                           end
-                        end
-            """
+            # [Inherited Class method call]
+            #<Python> class bar(object):
+            #             def __init__(self,name):
+            #                 self.name = name
+            #         class foo(bar):
+            #             def __init__(self,val,name):
+            #                 super(bar, self).__init__(name)
+            #
+            #<Crystal>   class Bar
+            #               def initialize(name)
+            #                   @name = name
+            #               end
+            #            end
+            #            class Foo < Bar
+            #               def initialize(val, name)
+            #                   super(name)
+            #               end
+            #            end
             if isinstance(node.value.func, ast.Name):
                 if node.value.func.id == 'super':
                     if attr == self._function[-1]:
                         return "super"
-                    elif (attr in self._self_functions):
+                    elif attr in self._self_functions:
                         return "public_method(:%s).super_method.call" % attr
                     else:
                         return attr
         elif isinstance(node.value, ast.Name):
             if node.value.id == 'self':
-                if (attr in self._class_functions):
-                    """ [Class Method] : 
-                    <Python>    self.bar()
-                    <Crystal>   Foo.bar()
-                    """
+                if attr in self._class_functions:
+                    # [Class Method] :
+                    # <Python>    self.bar()
+                    # <Crystal>   Foo.bar()
                     return "%s.%s" % (self._rclass_name, attr)
-                elif (attr in self._self_functions):
-                    """ [Instance Method] : 
-                    <Python>    self.bar()
-                    <Crystal>   bar()
-                    """
+                elif attr in self._self_functions:
+                    # [Instance Method] :
+                    # <Python>    self.bar()
+                    # <Crystal>   bar()
                     return attr
                 elif self._class_name:
                     for base_class in self._classes_base_classes[self._class_name]:
                         func = "%s.%s" % (base_class, attr)
-                        """ [Inherited Instance Method] : 
-                        <Python>    self.(assert)
-                        <Crystal>   assert()
-                        """
+                        # [Inherited Instance Method] :
+                        # <Python>    self.(assert)
+                        # <Crystal>   assert()
                         if func in self.methods_map.keys():
                             return attr
                         if func in self.order_methods_with_bracket.keys():
                             return attr
                         if (base_class in self._classes_self_functions) and \
                            (attr in self._classes_self_functions[base_class]):
-                            """ [Inherited Instance Method] :
-                            <Python> self.bar()
-                            <Crystal>   bar()
-                            """
+                            # [Inherited Instance Method] :
+                            # <Python> self.bar()
+                            # <Crystal>   bar()
                             return attr
                     else:
-                        """ [Instance Variable] : 
-                        <Python> self.bar
-                        <Crystal>   @bar
-                            """
+                        # [Instance Variable] :
+                        # <Python> self.bar
+                        # <Crystal>   @bar
                         self._class_self_variables.append(attr)
                         return "@%s" % (attr)
             elif self._class_name and (node.value.id in self._classes_base_classes[self._class_name]):
-                """ [Inherited Class method call]
-                <Python> class bar(object):
-                             def __init__(self,name):
-                                 self.name = name
-                         class foo(bar):
-                             def __init__(self,val,name):
-                                 bar.__init__(self,name)
-
-                <Crystal>   class Bar
-                             def initialize(name)
-                                 @name = name
-                             end
-                         end
-                         class Foo < Bar
-                             def initialize(val, name)
-                                 super(name)
-                             end
-                         end
-                """
+                # [Inherited Class method call]
+                #<Python> class bar(object):
+                #             def __init__(self,name):
+                #                 self.name = name
+                #         class foo(bar):
+                #             def __init__(self,val,name):
+                #                 bar.__init__(self,name)
+                #
+                #<Crystal>   class Bar
+                #             def initialize(name)
+                #                 @name = name
+                #             end
+                #         end
+                #         class Foo < Bar
+                #             def initialize(val, name)
+                #                 super(name)
+                #             end
+                #         end
                 if attr == self._function[-1]:
                     return "super"
                 elif (attr in self._self_functions):
@@ -2619,35 +2573,32 @@ class RB(object):
 
             elif node.value.id == self._class_name:
                 if (attr in self._class_variables):
-                    """ [class variable] : 
-                    <Python>    foo.bar
-                    <Crystal>   @@bar
-                    """
+                    # [class variable] :
+                    # <Python>    foo.bar
+                    # <Crystal>   @@bar
                     return f"@@{attr}"
             elif node.value.id in self._class_names:
                 if attr in self._classes_functions[node.value.id]:
-                    """ [class variable] : 
-                    <Python>    foo.bar
-                    <Crystal>   Foo.bar
-                    """
+                    # [class variable] :
+                    # <Python>    foo.bar
+                    # <Crystal>   Foo.bar
                     return "%s.%s" % (node.value.id[0].upper() + node.value.id[1:], attr)
             #elif node.value.id in self.module_as_map:
-            #    """ [module alias name] : 
+            #    """ [module alias name] :
             #    <Python> np.array([1, 1])
             #    <Crystal>   Numo::NArray[1, 1]
             #    """
             #    if attr in self.module_as_map[node.value.id].keys():
             #        return "%s" % (self.module_as_map[node.value.id][attr])
-            #    """ [module alias name] : 
+            #    """ [module alias name] :
             #    <Python> np.sum(np.array([1,1]))
             #    <Crystal>   Numo::NArray[1, 1].sum
             #    """
         elif isinstance(node.value, ast.Str):
             if node.attr in self.call_attribute_map:
-                """ [attribute convert]
-                <Python>    ' '.join(ary)
-                <Crystal>   ary.join(' ')
-                """
+                # [attribute convert]
+                #<Python>    ' '.join(ary)
+                #<Crystal>   ary.join(' ')
                 return "%s(%s)" % (attr, self.visit(node.value))
         v = self.visit(node.value)
         if attr != '':
@@ -2697,16 +2648,16 @@ class RB(object):
         """
         els = []
         for k, v in zip(node.keys, node.values):
+            keystr, valstr = self.visit(k), self.visit(v)
             if isinstance(k, ast.Name):
-                els.append('"%s" => %s' % (self.visit(k), self.visit(v)))
+                els.append(f'"{keystr}" => {valstr}')
+            elif self._dict_format is True: # ast.Str
+                els.append(f"{keystr}: {valstr}")
             else: # ast.Str, ast.Num
-                if self._dict_format == True: # ast.Str
-                    els.append("%s: %s" % (self.visit(k), self.visit(v)))
-                else: # ast.Str, ast.Num
-                    els.append("%s => %s" % (self.visit(k), self.visit(v)))
+                els.append(f"{keystr} => {valstr}")
 
         if els:
-            return "{%s}" % (", ".join(els))
+            return "{" + ", ".join(els) + "}"
         else:
             return self.empty_hash(node, crytype)
 
@@ -2738,17 +2689,19 @@ class RB(object):
         return ", ".join(s)
 
     def process_slice_with_step(self, node) -> Tuple[str, Optional[str]]:
-        """ Special subcase of visit_Slice where we want to return
+        """ 
+        Special subcase of visit_Slice where we want to return
         a range-string plus a separate step-function that will be
-        used to tack on after the Subscript"""
-        
+        used to tack on after the Subscript
+        """
         lowval = self.visit(node.lower) if node.lower else 0
         if node.upper:
             rngstr = "%s...%s" % (lowval, self.visit(node.upper))
         else:
             rngstr = "%s..-1" % lowval
 
-        # suffix function to do stepping
+        # suffix function to do stepping.
+        # Unfortunately for crystal this returns an Array and not a Slice :(
         if node.step:
             suffix = "each_slice(%s).map(&.first)" % self.visit(node.step)
             return (rngstr, suffix)
@@ -2762,14 +2715,14 @@ class RB(object):
         """
         rangestr, _ = self.process_slice_with_step(node)
         return rangestr
-        
+
     def visit_Subscript(self, node) -> str:
         self._is_string_symbol = False
         name = self.visit(node.value)
         filtname = self.ope_filter(name)
         if isinstance(node.slice, (ast.Index, ast.Constant, ast.Name)):
             for arg in self._function_args:
-                if arg == ("**%s" % name):
+                if arg == f"**{name}":
                     self._is_string_symbol = True
             index = self.visit(node.slice)
             self._is_string_symbol = False
@@ -2786,7 +2739,7 @@ class RB(object):
             s = self.visit(node.slice)
             return "%s[%s]" % (filtname, s)
 
-        
+
     def visit_Index(self, node : ast.Index) -> str:
         return self.visit(node.value)
 
@@ -2810,7 +2763,7 @@ class RB(object):
             return "yield"
 
     def empty_list(self, node : ast.AST, crytype = None) -> str:
-        """ 
+        """
         Return Crystal representation of an empty Array
         Crystal needs the annotation. If we dont have one on the
         Python side, then warn.
@@ -2823,8 +2776,8 @@ class RB(object):
             return "[]"
 
     def empty_hash(self, node : ast.AST, crytype = None) -> str:
-        """ 
-        Return Crystal representation of an empty Hash 
+        """
+        Return Crystal representation of an empty Hash
         Crystal needs the annotation. If we dont have one on the
         Python side, then warn.
         """
@@ -2834,7 +2787,7 @@ class RB(object):
         else:
             self.maybewarn("empty-dict infer issue (%s line:%d col:%d)" % (node, node.lineno, node.col_offset))
             return "{}"
-        
+
 
 def convert_py2cr(s : str, dir_path : str , path : str = '', base_path_count : int = 0, modules : List[str] = None, mod_paths : Dict[str, str] = None, no_stop : bool = False, verbose : bool = False):
     """
@@ -2848,7 +2801,7 @@ def convert_py2cr(s : str, dir_path : str , path : str = '', base_path_count : i
     """
     modules = modules or []
     mod_paths = mod_paths or {}
-    
+
     # get modules information
     visitor = RB(path, dir_path, base_path_count, mod_paths, verbose=verbose)
     visitor.mode(2)
@@ -2874,7 +2827,7 @@ def convert_py2cr(s : str, dir_path : str , path : str = '', base_path_count : i
 
 def convert_py2cr_write(filename, base_path_count=0, subfilenames=None, base_path=None, require=None, output=None, force=None, no_stop=False, verbose=False):
     subfilenames = subfilenames or []
-    
+
     if output:
         if not force:
             if os.path.exists(output):
@@ -2974,7 +2927,7 @@ def main() -> None:
                       help="convert all local import module files of specified Python file. *.py => *.cr")
 
     options, args = parser.parse_known_args()
-    
+
     if len(args) == 0:
         parser.print_help()
         sys.exit(1)

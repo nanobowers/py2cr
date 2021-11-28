@@ -1,6 +1,9 @@
 """
 A formatter module that keeps track of indentation
 """
+
+from .errors import CrystalError
+
 class Formatter:
     """
     A very simple code formatter that handles efficient

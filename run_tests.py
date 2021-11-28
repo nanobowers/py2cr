@@ -52,7 +52,7 @@ def main():
         help="run failing known-to-fail tests only"
         )
     options, args = option_parser.parse_known_args()
-    runner = testtools.runner.Py2RbTestRunner(verbosity=2)
+    runner = testtools.runner.Py2CrTestRunner(verbosity=2)
     results = None
     if options.run_all:
         results = runner.run(testtools.tests.ALL)

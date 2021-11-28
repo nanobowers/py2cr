@@ -13,13 +13,13 @@ class EnviromentTest(unittest.TestCase):
     py2cr_dot_cr = "lib/py2cr/src/py2cr.cr"
     crystal = "crystal"
 
-    def reportProgres(self):
+    def reportProgres(self) -> None:
         """Should be overloaded by the test result class"""
 
-    def stop(self):
+    def stop(self) -> None:
         """Should be overloaded by the test result class"""
 
-    def runTest(self):
+    def runTest(self) -> None:
         """The actual test goes here."""
         tmpfile = os.path.join(tempfile.gettempdir(), tempfile.gettempprefix())
         if os.system(f"{self.crystal} --help > {tmpfile}"):
@@ -32,5 +32,5 @@ class EnviromentTest(unittest.TestCase):
             raise RuntimeError(f"Can't find '{self.py2cr_dot_cr}'.")
         self.reportProgres()
 
-    def __str__(self):
-        return(f"Looking for '{self.crystal}', '{self.py2cr_dot_cr}' [3]:")
+    def __str__(self) -> str:
+        return f"Looking for '{self.crystal}', '{self.py2cr_dot_cr}' [3]:"

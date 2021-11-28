@@ -1,6 +1,7 @@
 """module with the Writer class that helps write colorful output"""
+import sys
 
-class Writer(object):
+class Writer:
     "Class which helps to print in color and with alignment and width"
 
     color_templates = (
@@ -27,8 +28,7 @@ class Writer(object):
 
     c_color = '\033[%sm'
 
-    def __init__(self, in_file = None):
-        import sys
+    def __init__(self, in_file = None) -> None:
         self._line_wrap = False
         self._write_pos = 0
         self._file = in_file or sys.stdout
@@ -51,7 +51,7 @@ class Writer(object):
             except ImportError:
                 self.write = self.normal_write
 
-    def write(self, text, color="", align="left", width=80):
+    def ___write(self, text : str, color : str = "", align : str = "left", width : int = 80) -> None:
         """
         Prints a text on the screen.
 
@@ -62,8 +62,7 @@ class Writer(object):
                   right hand side of the screen, filled with " " if necessary
         width ... the screen width
         """
-
-    def normal_write(self, text, color="", align="left", width=80):
+    def normal_write(self, text : str, color : str = "", align : str = "left", width : int = 80) -> None:
         "Ignores color but uses alignment and width"
         _color = color
         if align == "right":
@@ -89,7 +88,7 @@ class Writer(object):
         self._write_pos %= width
 
 
-    def ansi_write(self, text, color="", align="left", width=80):
+    def ansi_write(self, text : str, color : str = "", align : str = "left", width : int = 80) -> None:
         "Writes with color, alignment and width"
         try:
             return self.normal_write(

@@ -1,14 +1,15 @@
 """module which finds tests from the test directory and converts them to
 the unittest framework classes."""
-
-import testtools.env_tests as env_tests
-import testtools.known_to_fail as known_to_fail
-import testtools.util as util
-import unittest
-import glob
+from typing import List, Tuple
 import os
+import glob
+import unittest
+import itertools
+from testtools import env_tests
+from testtools import known_to_fail
+from testtools import util
 
-def create_cases():
+def create_cases() -> Tuple[unittest.TestSuite, unittest.TestSuite] :
     """Helper function to find all tests in the test folders
     and wrapping them into the correct test class"""
 
@@ -30,14 +31,6 @@ def create_cases():
                 )
             )
 
-    test_paths = glob.glob("tests/test_*.rb")
-    test_paths.sort()
-    for test_path in test_paths:
-        test_cases.addTest(
-            unittest.TestLoader().loadTestsFromTestCase(
-                util.run_crystal_with_stdlib(test_path, os.path.basename(test_path))
-                )
-            )
 
     # Use all of the tests/*/*.py files to add
     # all of the transpiler feature tests.
@@ -45,10 +38,8 @@ def create_cases():
     test_paths = glob.glob("tests/*/*.py")
     test_paths.sort()
     for test_path in test_paths:
-        if (
-            test_path.replace("\\","/") not
-            in known_to_fail.KNOWN_TO_FAIL
-            ):
+        test_path_fix = test_path.replace("\\","/")
+        if test_path_fix not in known_to_fail.KNOWN_TO_FAIL:
             test_cases.addTest(
                 unittest.TestLoader().loadTestsFromTestCase(
                     util.compile_and_run_file_test(
@@ -66,19 +57,18 @@ def create_cases():
                         )
                     )
                 )
-    return test_cases , failing_test_cases
+    return test_cases, failing_test_cases
 
 NOT_KNOWN_TO_FAIL, KNOWN_TO_FAIL = create_cases()
 ALL = unittest.TestSuite((NOT_KNOWN_TO_FAIL, KNOWN_TO_FAIL))
 
 print(f"INFO: Found {ALL.countTestCases()} testcases.")
 
-def get_tests(names):
+def get_tests(names : List[str]) -> unittest.TestSuite:
     """filters out all tests that don't exist in names and
     adds them to a new test suite"""
     def flatten(itr):
         """tries to flatten out a suite to the individual tests"""
-        import itertools
         try:
             return itertools.chain.from_iterable(flatten(item) for item in iter)
         except TypeError:
@@ -96,7 +86,7 @@ def get_tests(names):
             return_suite.addTest(suite)
     return return_suite
 
-def load_tests(_loader, standard_tests, _search_pattern):
+def load_tests(_loader, standard_tests : unittest.TestSuite, _search_pattern) -> unittest.TestSuite:
     """function called by the unittest framework to find tests in a module"""
     suite = standard_tests
     suite.addTests(ALL)

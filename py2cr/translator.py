@@ -1,6 +1,7 @@
-from typing import Dict
+#from typing import Dict
 
 class CrystalTranslator:
+    """Abstract Base Class that other translators inherit from"""
     def __init__(self):
         pass
 
