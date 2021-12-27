@@ -111,6 +111,7 @@ class RB(object):
         'list'  : 'Array',
         'tuple' : 'Tuple',
         'dict'  : 'Hash',
+        'bytes' : 'Bytes',
         '__file__' : '__FILE__',
     }
 
@@ -574,10 +575,12 @@ class RB(object):
         #                 def bar(hoge)
         if len(self._function) != 1:
             is_closure = True
-        if self._class_name:
+        if '__new__' == node.name:
+            func_name = 'new'
+        elif self._class_name:
             if not is_static and not is_closure:
                 if not rb_args[0] == "self":
-                    raise NotImplementedError("The first argument must be 'self'.")
+                    raise NotImplementedError(f"The first argument must be 'self' in line {node.lineno}")
                 del rb_args[0]
                 del rb_args_default[0]
 
@@ -2566,13 +2569,13 @@ class RB(object):
                 #         end
                 if attr == self._function[-1]:
                     return "super"
-                elif (attr in self._self_functions):
+                elif attr in self._self_functions:
                     return "public_method(:%s).super_method.call" % attr
                 else:
                     return attr
 
             elif node.value.id == self._class_name:
-                if (attr in self._class_variables):
+                if attr in self._class_variables:
                     # [class variable] :
                     # <Python>    foo.bar
                     # <Crystal>   @@bar

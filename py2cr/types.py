@@ -28,6 +28,7 @@ class CrystalTypes:
         'int'   : 'Int32',
         'float' : 'Float64',
         'list'  : 'Array',
+        'bytes'  : 'Bytes',
         'List'  : 'Array',
         'tuple' : 'Tuple',
         'dict'  : 'Hash',
@@ -91,9 +92,13 @@ class CrystalTypes:
             return self.visit(node.value)
         if isinstance(node, ast.Constant):
             return self.visit_Constant(node)
-
+        if isinstance(node, ast.Attribute):
+            return self.visit_Attribute(node)
         raise Exception(f"Unknown klass {type(node)} in CrystalTypes")
 
+    def visit_Attribute(self, node) -> str:
+        return self.visit(node.value)
+    
     def visit_Name(self, node) -> str:
         """
         Name(identifier id, expr_context ctx)
@@ -142,12 +147,27 @@ class CrystalTypes:
             const_typename = node.n.__class__.__name__
         elif isinstance(node, ast.Str):
             const_typename = 'str'
+        elif isinstance(node, ast.Tuple):
+            const_typename = 'tuple'
+            els = [str(x.value) for x in node.elts]
+            print( ", ".join(els))
+        elif isinstance(node, ast.Dict):
+            const_typename = 'dict' # node.visit(node)
+        elif isinstance(node, ast.Call):
+            const_typename = f"{node.func}(#{node.args})"
+        elif isinstance(node, ast.Name):
+            # unclear what to do here.
+            #const_typename = node.id
+            const_typename = None
+            
         else:
-            raise Exception(f"Invalid constant node: {node}")
+            raise Exception(f"Invalid constant node: {node} at line {node.lineno}")
 
         if const_typename in cls.name_map:
             crystal_typename = cls.name_map[const_typename]
             if nilable:
                 return crystal_typename + "?"
             return crystal_typename
+        #else:
+        #    return const_typename
         return "_"

@@ -47,7 +47,7 @@ class PythonMain(CrystalTranslator):
         elif func_args == 1:
             return f"{filt_args[0]}.to_i"
         elif func_args == 2:
-            return "%s.to_i(%s)" % (filt_args[0:2])
+            return "%s.to_i(%s)" % (filt_args[0], filt_args[1])
         raise ValueError("Expecting 0..2 args")
 
     @staticmethod
@@ -192,9 +192,9 @@ class PythonMain(CrystalTranslator):
                     cry_args.append(cvisit.visit(elt))
                     cvisit._tuple_type = '[]'
             elif isinstance(funcdb.node.args[0], ast.Dict):
-                return cry_args[0]
+                return cvisit.visit(funcdb.node.args[0])
             elif isinstance(funcdb.node.args[0], ast.Name):
-                return cry_args[0] + ".dup"
+                return cvisit.visit(funcdb.node.args[0]) + ".dup"
         else:
             cvisit.set_result(2)
             raise CrystalError("dict in argument list Error")

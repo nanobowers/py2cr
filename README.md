@@ -56,10 +56,6 @@ Generally, `py2cr.py somefile.py > somefile.cr`
 
 There is a Crystal shim/wrapper library in `src/py2cr` (and linked into `lib/py2cr`) that is also referenced in the generated script.  You may need to copy that as needed, though eventually it may be appropriate to convert it to a shard if that is more appropriate.
 
-## Example
-
-*TODO*
-
 ## Tests
 
 ```
