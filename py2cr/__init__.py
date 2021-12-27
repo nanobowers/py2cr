@@ -1750,7 +1750,9 @@ class RB(object):
         """
         assert len(node.ops) == len(node.comparators)
 
-        def compare_pair(left : str, comp : str, op):
+        def compare_pair(leftnode, compnode, op):
+            left = self.visit(leftnode)
+            comp = self.visit(compnode)
             if (left == '__name__') and (comp == '"__main__"') or \
                (left == '"__main__"') and (comp == '__name__'):
                 # <Python>     __name__ == '__main__':
@@ -1761,31 +1763,45 @@ class RB(object):
             # defined for Hashes in Crystal, so chose to define a py_in?
             # method on String/Array/Hash
             if isinstance(op, ast.In):
-                return "%s.py_in?(%s)" % (comp, left)
+                return f"{comp}.py_in?({left})"
             elif isinstance(op, ast.NotIn):
-                return "!%s.py_in?(%s)" % (comp, left)
+                return f"!{comp}.py_in?({left})"
             elif isinstance(op, ast.Eq):
-                return "%s == %s" % (left, comp)
+                return f"{left} == {comp}"
             elif isinstance(op, ast.NotEq):
-                return "%s != %s" % (left, comp)
+                return f"{left} != {comp}"
             elif isinstance(op, ast.IsNot):
-                return "!%s.equal?(%s)" % (left, comp)
+                # unclear if we should handle this special case of
+                # is/is-not None specially, as #nil? is a compile-time
+                # method.  Also note that left/comp are already visited
+                # so we compare against a crystal string here.
+                if comp == "nil":
+                    return f"!{left}.nil?"
+                else:
+                    return f"{left} != {comp}"
+            elif isinstance(op, ast.Is):
+                # see note for IsNot handling
+                if comp == "nil":
+                    return f"{left}.nil?"
+                else:
+                    return f"{left} == {comp}"
             else:
                 return "%s %s %s" % (left, self.get_comparison_op(op), comp)
 
+        # Early return for single compare operation
+        if len(node.ops) == 1:
+            return compare_pair(node.left, node.comparators[0], node.ops[0])
+        
         # This handles python's `a < b < c` to convert to `(a < b) && (b < c)`
         compare_list : List[str] = []
-        comp : str = "???" # fake initial value
         for i in range(len(node.ops)):
             if i == 0:
-                left = self.visit(node.left)
+                left = node.left
             else:
-                left = comp
-            comp = self.visit(node.comparators[i])
+                left = node.comparators[i-1]
+            comp = node.comparators[i]
             op = node.ops[i]
             pair = compare_pair(left, comp, op)
-            if len(node.ops) == 1:
-                return pair
             compare_list.append('(' + pair + ')')
         return ' && '.join(compare_list)
 
