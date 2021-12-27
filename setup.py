@@ -13,6 +13,9 @@ here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+    
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
 
 setup(
     name='py2cr',
@@ -42,10 +45,7 @@ setup(
                   'builtins/require.cr',
                   'builtins/module.cr', ]
     },
-    install_requires=[
-        'pyyaml',
-        'numpy',
-    ],
+    install_requires=requirements,
     entry_points={
         'console_scripts': [
             'py2cr=py2cr:main'
