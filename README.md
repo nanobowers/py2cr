@@ -95,7 +95,7 @@ The test-runner scripts will automatically run py2cr to produce a Crystal script
 
 For special test-cases, it is possible to provide a configuration YAML file on a per test basis named `tests/<subdirectory>/<testname>.config.yaml` which overrides defaults for testing.  The following keys/values are supported:
 
-```
+```yaml
 min_python_version: [int, int] # minimum major/minor version
 max_python_version: [int, int] # maximum major/minor version
 expected_exit_status: int      # exit status for py/cr test script
@@ -110,11 +110,16 @@ Some inference of bare list/dict types can now convert to `[] of X` and `{} of X
 
 ## Status
 
-This is incomplete and many of the tests brought forward from py2rb do not pass.  Some of them may never pass as-is due to significant language / compilation differences (even moreso than Python vs. Ruby)
+This is project is and will continue to be incomplete because 
++ transpiling is hard
++ the surface area of Python is extremely large
++ not all Python things have a simple/good mapping into Crystal
 
-To some extent, it will always be incomplete.  The goal is to cover common cases and reduce the additional work to minimum-viable-program.
+The goal is to cover common cases and reduce the additional work to create a minimum-viable-program.
 
-Numpy tests have been disabled from the default testsuite, but about 1/3rd of them are operational and can be run with `./run_tests.py numpy`
+Many of the tests brought forward from py2rb do not pass.  Some of them may never pass as-is due to significant language / compilation differences (even moreso than Python vs. Ruby)
+
+Some numpy tests have recently been re-enabled with recent support for transpiliing to `num.cr`.  Numpy related tests can be run with `./run_tests.py numpy`
 
 
 Additional tests have been imported from [py2many](https://github.com/adsharma/py2many).  Many of these do not operate (known to fail), but some have been used to enhance coverage of py2cr. :tada:  Run these with `./run_tests.py py2many`
