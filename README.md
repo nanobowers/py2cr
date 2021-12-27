@@ -17,6 +17,8 @@ pip install py2cr
 or
 ```
 git clone git://github.com/nanobowers/py2cr.git
+cd py2cr
+python setup.py
 ```
 
 ## Versions
@@ -26,7 +28,7 @@ git clone git://github.com/nanobowers/py2cr.git
 
 ## Dependencies
 
-### Python
+<!---### Python
 
 ```
 pip install pyyaml
@@ -36,7 +38,7 @@ pip install numpy
 
 # Probably not needed for much longer since py2 support is going to be removed.
 pip install six 
-```
+```-->
 
 ### Crystal
 
