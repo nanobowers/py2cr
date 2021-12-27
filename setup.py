@@ -19,6 +19,7 @@ setup(
     version='0.1.0',
     description='A code translator using AST from Python to Crystal',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url='https://github.com/nanobowers/py2cr',
     author='Ben Bowers',
     author_email='nanobowers@gmail.com',
